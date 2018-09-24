@@ -6,6 +6,7 @@ from django.http import StreamingHttpResponse
 
 from django_hpc_job_controller.client.core.messaging.message import Message
 from django_hpc_job_controller.models import WebsocketToken
+from django_hpc_job_controller.server.settings import HPC_FILE_CONNECTION_CHUNK_SIZE
 
 IPC_UNIX_SOCKET = "/tmp/job_controller.sock"
 
@@ -180,8 +181,9 @@ def fetch_file_from_cluster(cluster, path):
         raise
 
     # Set the path to the file we want to fetch
-    msg = Message(Message.SET_FILE_CONNECTION_FILE_NAME)
+    msg = Message(Message.SET_FILE_CONNECTION_FILE_DETAILS)
     msg.push_string(path)
+    msg.push_ulong(HPC_FILE_CONNECTION_CHUNK_SIZE)
     send_message_socket(msg, connection)
 
     # Read the result and verify that the file exists

@@ -19,7 +19,7 @@ class JobController:
         Called to create a websocket connection to the server and manage incoming messages
         :return: Nothing
         """
-        async with websockets.connect('{}/pipe/?token={}'.format(self.settings.WEBSOCKET_SERVER, self.argv[2])) as sock:
+        async with websockets.connect('{}/pipe/?token={}'.format(self.settings.HPC_WEBSOCKET_SERVER, self.argv[2])) as sock:
             async for msg in sock:
                 print(msg)
                 # Create a message from the raw data

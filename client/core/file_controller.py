@@ -19,13 +19,14 @@ class FileController:
         self.file = None
         self.offset = 0
         self.file_size = 0
+        self.file_chunk_size = 0
 
     async def run(self):
         """
         Called to create a file websocket connection to the server and manage incoming messages
         :return:
         """
-        async with websockets.connect('{}/file/?token={}'.format(self.settings.WEBSOCKET_SERVER, self.token), max_size=2**32) as sock:
+        async with websockets.connect('{}/file/?token={}'.format(self.settings.HPC_WEBSOCKET_SERVER, self.token), max_size=2**32) as sock:
             logging.info("File controller connected ok with token {}".format(self.token))
             async for msg in sock:
                 # Convert the data to a message
@@ -35,9 +36,10 @@ class FileController:
                 msg_id = msg.pop_uint()
 
                 # Handle the message
-                if msg_id == Message.SET_FILE_CONNECTION_FILE_NAME:
+                if msg_id == Message.SET_FILE_CONNECTION_FILE_DETAILS:
                     # Read the file name from the message
                     self.file_path = msg.pop_string()
+                    self.file_chunk_size = msg.pop_ulong()
 
                     # Check that the file exists
                     if not os.path.exists(self.file_path):
@@ -60,9 +62,9 @@ class FileController:
                     # Check if there is any more file to read
                     while self.offset < self.file_size:
                         # Read this chunk
-                        data = self.file.read(self.settings.FILE_CONNECTION_CHUNK_SIZE)
+                        data = self.file.read(self.file_chunk_size)
                         # Update the offset
-                        self.offset += self.settings.FILE_CONNECTION_CHUNK_SIZE
+                        self.offset += self.file_chunk_size
 
                         # Create a message to send back to the client
                         result = Message(Message.SEND_FILE_CHUNK)

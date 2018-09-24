@@ -8,14 +8,8 @@ from time import sleep
 
 import websockets
 
+from django_hpc_job_controller.server.settings import HPC_WEBSOCKET_PORT, HPC_IPC_UNIX_SOCKET
 from .server import poll_cluster_connections, handle_client, domain_socket_client_connected
-
-# todo: document and move to settings
-# The port to listen on for websocket connections
-HPC_WEBSOCKET_PORT = 8001
-
-# The path to the unix socket for
-HPC_IPC_UNIX_SOCKET = "/tmp/job_controller.sock"
 
 
 def check_if_socket_open(host, port):

@@ -85,9 +85,9 @@ async def file_handler(sock, token):
     # Wait for the server to send us the name of the file to send to the client
     msg = await recv_message_reader(reader)
 
-    # Confirm that the message is SET_FILE_CONNECTION_FILE_NAME
-    if not msg.pop_uint() == Message.SET_FILE_CONNECTION_FILE_NAME:
-        raise Exception("Didn't get expected message reading from UDS, expected SET_FILE_CONNECTION_FILE_NAME")
+    # Confirm that the message is SET_FILE_CONNECTION_FILE_DETAILS
+    if not msg.pop_uint() == Message.SET_FILE_CONNECTION_FILE_DETAILS:
+        raise Exception("Didn't get expected message reading from UDS, expected SET_FILE_CONNECTION_FILE_DETAILS")
 
     # Send the message on to the client
     await sock.send(msg.to_bytes())

@@ -29,8 +29,9 @@ class Message:
     INITIATE_FILE_CONNECTION = 1000
 
     # Sets the file that the remote file connection is to read
-    # string: path to file on remote machine
-    SET_FILE_CONNECTION_FILE_NAME = 1001
+    # string: Path to file on remote machine
+    # ulong: Size of each chunk to send
+    SET_FILE_CONNECTION_FILE_DETAILS = 1001
 
     # Sends a file chunk to the server
     # bytes: The data for this chunk - if the len is 0 then there are no more chunks

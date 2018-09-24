@@ -31,10 +31,10 @@ class JobControllerDaemon(Daemon):
         :return: None
         """
         # Get the log file name
-        log_file_name = os.path.join(settings.LOG_DIRECTORY, 'logfile.log')
+        log_file_name = os.path.join(settings.HPC_LOG_DIRECTORY, 'logfile.log')
 
         # Make sure that the log directory exists
-        os.makedirs(settings.LOG_DIRECTORY, exist_ok=True)
+        os.makedirs(settings.HPC_LOG_DIRECTORY, exist_ok=True)
 
         # Create the logger
         self.logger = logging.getLogger()
@@ -94,10 +94,10 @@ class JobControllerDaemon(Daemon):
 if __name__ == '__main__':
     # Create the daemon instance
     daemon = JobControllerDaemon(
-        settings.DAEMON_PID_FILE,
+        settings.HPC_DAEMON_PID_FILE,
         '/dev/null',
-        os.path.join(settings.LOG_DIRECTORY, 'out.log'),
-        os.path.join(settings.LOG_DIRECTORY, 'err.log'),
+        os.path.join(settings.HPC_LOG_DIRECTORY, 'out.log'),
+        os.path.join(settings.HPC_LOG_DIRECTORY, 'err.log'),
         sys.argv
     )
 
