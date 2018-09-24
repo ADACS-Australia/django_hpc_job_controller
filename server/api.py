@@ -6,9 +6,7 @@ from django.http import StreamingHttpResponse
 
 from django_hpc_job_controller.client.core.messaging.message import Message
 from django_hpc_job_controller.models import WebsocketToken
-from django_hpc_job_controller.server.settings import HPC_FILE_CONNECTION_CHUNK_SIZE
-
-IPC_UNIX_SOCKET = "/tmp/job_controller.sock"
+from django_hpc_job_controller.server.settings import HPC_FILE_CONNECTION_CHUNK_SIZE, HPC_IPC_UNIX_SOCKET
 
 
 def send_message_socket(message, sock):
@@ -45,7 +43,7 @@ def recv_message_socket(sock):
     return Message(data=data)
 
 
-def send_uds_message(message, path=IPC_UNIX_SOCKET):
+def send_uds_message(message, path=HPC_IPC_UNIX_SOCKET):
     """
     Sends a message over the specified unix domain socket to the websocket server and returns a single reply
 
