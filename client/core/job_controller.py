@@ -19,7 +19,8 @@ class JobController:
         Called to create a websocket connection to the server and manage incoming messages
         :return: Nothing
         """
-        async with websockets.connect('{}/pipe/?token={}'.format(self.settings.HPC_WEBSOCKET_SERVER, self.argv[2])) as sock:
+        async with websockets.connect(
+                '{}/pipe/?token={}'.format(self.settings.HPC_WEBSOCKET_SERVER, self.argv[2])) as sock:
             async for msg in sock:
                 print(msg)
                 # Create a message from the raw data
@@ -31,7 +32,7 @@ class JobController:
                     # Create a new thread to handle a file connection
                     Thread(target=create_file_connection, args=[msg.pop_string(), self.settings], daemon=True).start()
 
-                #await sock.send(message)
+                # await sock.send(message)
                 else:
                     logging.error("Got unknown message id {}".format(msg_id))
 

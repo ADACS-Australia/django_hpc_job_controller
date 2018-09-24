@@ -1,5 +1,4 @@
 import io
-import os
 import random
 import uuid
 from threading import Thread
@@ -108,7 +107,9 @@ class HpcCluster(models.Model):
                 # Looks like the server is down, or credentials are invalid
                 return
             # Execute the remote command to start the daemon
-            ssh.exec_command("cd {}; . venv/bin/activate; python client.py start {}".format(self.client_path, token.token))
+            ssh.exec_command(
+                "cd {}; . venv/bin/activate; python client.py start {}".format(self.client_path, token.token)
+            )
 
         # Spawn a thread to try to connect the client
         Thread(target=connection_thread, args=[], daemon=True).start()
@@ -202,4 +203,3 @@ class HpcJob(models.Model):
 
         :return: The current status of the job (Either SUBMITTED or QUEUED)
         """
-

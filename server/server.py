@@ -4,8 +4,8 @@ from asyncio import Queue
 from time import sleep
 
 from django.apps import apps
-from django_hpc_job_controller.client.core.messaging.message import Message
 
+from django_hpc_job_controller.client.core.messaging.message import Message
 
 # The list of currently connected clusters in format
 # {Websocket: {'token': WebsocketToken object, 'queue': Queue object}}
@@ -74,7 +74,6 @@ def poll_cluster_connections():
 
 
 async def file_handler(sock, token):
-
     # Get the socket map
     s, m = get_socket_from_token(str(token.token))
 

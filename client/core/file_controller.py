@@ -24,9 +24,11 @@ class FileController:
     async def run(self):
         """
         Called to create a file websocket connection to the server and manage incoming messages
-        :return:
+
+        :return: Nothing
         """
-        async with websockets.connect('{}/file/?token={}'.format(self.settings.HPC_WEBSOCKET_SERVER, self.token), max_size=2**32) as sock:
+        async with websockets.connect('{}/file/?token={}'.format(self.settings.HPC_WEBSOCKET_SERVER, self.token),
+                                      max_size=2 ** 32) as sock:
             logging.info("File controller connected ok with token {}".format(self.token))
             async for msg in sock:
                 # Convert the data to a message

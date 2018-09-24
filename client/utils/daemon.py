@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 import atexit
 import os
 import sys

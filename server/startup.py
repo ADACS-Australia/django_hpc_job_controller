@@ -46,7 +46,7 @@ async def new_client(websocket, path):
     try:
         from ..models import WebsocketToken
         token = WebsocketToken.objects.get(token=params['token'][0], used=False)
-        
+
         # Mark the token used
         token.used = True
         token.save()
@@ -70,10 +70,10 @@ async def new_client(websocket, path):
 
 async def domain_socket_server():
     sock = HPC_IPC_UNIX_SOCKET
-    
+
     # Make sure the socket does not already exist
     try:
-        os.unlink(sock)    
+        os.unlink(sock)
     except OSError:
         if os.path.exists(sock):
             raise
@@ -120,5 +120,3 @@ def check_websocket_server():
 
         # Spawn a new thread to initiate cluster connections
         Thread(target=poll_cluster_connections, args=[], daemon=True).start()
-
-

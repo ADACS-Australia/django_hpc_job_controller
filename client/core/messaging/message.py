@@ -74,7 +74,6 @@ class Message:
             # Reset the offset to the start of the message
             self.offset = 0
 
-
     def push_bool(self, i):
         """
         Pushes a boolean value on to the message
@@ -107,7 +106,7 @@ class Message:
         :return: The byte at the current message offset
         """
         self.offset += 1
-        return struct.unpack_from('B', self.data, self.offset-1)[0]
+        return struct.unpack_from('B', self.data, self.offset - 1)[0]
 
     def push_byte(self, i):
         """
@@ -123,7 +122,7 @@ class Message:
         :return: The byte at the current message offset
         """
         self.offset += 1
-        return struct.unpack_from('b', self.data, self.offset-1)[0]
+        return struct.unpack_from('b', self.data, self.offset - 1)[0]
 
     def push_ushort(self, i):
         """
@@ -139,7 +138,7 @@ class Message:
         :return: The short at the current message offset
         """
         self.offset += 2
-        return struct.unpack_from('H', self.data, self.offset-2)[0]
+        return struct.unpack_from('H', self.data, self.offset - 2)[0]
 
     def push_short(self, i):
         """
@@ -155,7 +154,7 @@ class Message:
         :return: The short at the current message offset
         """
         self.offset += 2
-        return struct.unpack_from('H', self.data, self.offset-2)[0]
+        return struct.unpack_from('H', self.data, self.offset - 2)[0]
 
     def push_uint(self, i):
         """
@@ -171,7 +170,7 @@ class Message:
         :return: The int at the current message offset
         """
         self.offset += 4
-        return struct.unpack_from('I', self.data, self.offset-4)[0]
+        return struct.unpack_from('I', self.data, self.offset - 4)[0]
 
     def push_int(self, i):
         """
@@ -187,7 +186,7 @@ class Message:
         :return: The int at the current message offset
         """
         self.offset += 4
-        return struct.unpack_from('i', self.data, self.offset-4)[0]
+        return struct.unpack_from('i', self.data, self.offset - 4)[0]
 
     def push_ulong(self, i):
         """
@@ -203,7 +202,7 @@ class Message:
         :return: The long at the current message offset
         """
         self.offset += 8
-        return struct.unpack_from('Q', self.data, self.offset-8)[0]
+        return struct.unpack_from('Q', self.data, self.offset - 8)[0]
 
     def push_long(self, i):
         """
@@ -219,7 +218,7 @@ class Message:
         :return: The long at the current message offset
         """
         self.offset += 8
-        return struct.unpack_from('q', self.data, self.offset-8)[0]
+        return struct.unpack_from('q', self.data, self.offset - 8)[0]
 
     def push_float(self, i):
         """
@@ -235,7 +234,7 @@ class Message:
         :return: The float at the current message offset
         """
         self.offset += 4
-        return struct.unpack_from('f', self.data, self.offset-4)[0]
+        return struct.unpack_from('f', self.data, self.offset - 4)[0]
 
     def push_double(self, i):
         """
@@ -251,7 +250,7 @@ class Message:
         :return: The byte at the current message offset
         """
         self.offset += 8
-        return struct.unpack_from('d', self.data, self.offset-8)[0]
+        return struct.unpack_from('d', self.data, self.offset - 8)[0]
 
     def push_string(self, s):
         """
@@ -306,7 +305,7 @@ class Message:
         self.offset += byte_len
 
         # Slice the array and return the data
-        return self.data[self.offset-byte_len:self.offset]
+        return self.data[self.offset - byte_len:self.offset]
 
     def to_bytes(self):
         """

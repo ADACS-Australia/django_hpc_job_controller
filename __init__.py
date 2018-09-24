@@ -7,4 +7,5 @@ lock = FileLock("/tmp/hpc-job-controller-lock")
 with lock:
     # Check that the websocket server is running
     from .server.startup import check_websocket_server
+
     check_websocket_server()
