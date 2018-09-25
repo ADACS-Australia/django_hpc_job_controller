@@ -57,14 +57,14 @@ def poll_cluster_connections():
     while not apps.apps_ready:
         sleep(0.1)
 
-    from ..models import HpcCluster, WebsocketToken
-
     # Delete all existing websocket tokens
+    from django_hpc_job_controller.models import WebsocketToken
     WebsocketToken.objects.all().delete()
 
     # Loop forever
     while True:
         # Iterate over all clusters
+        from django_hpc_job_controller.models import HpcCluster
         for cluster in HpcCluster.objects.all():
             # Ask the cluster to connect
             cluster.try_connect()
@@ -74,9 +74,13 @@ def poll_cluster_connections():
 
 
 async def file_handler(sock, token):
-    # Get the socket map
-    s, m = get_socket_from_token(str(token.token))
+    """
+    Handles the proxying of the websocket to Django over the unix domain socket
 
+    :param sock: The websocket connection
+    :param token: The websocket token for the websocket connection
+    :return: Nothing
+    """
     from django_hpc_job_controller.server.startup import HPC_IPC_UNIX_SOCKET
     # Create the socket
     reader, writer = await asyncio.open_unix_connection(HPC_IPC_UNIX_SOCKET + "." + str(token.token))
@@ -132,7 +136,6 @@ async def send_handler(sock, token, queue):
     Handles sending messages from the queue to the client
 
     :param sock: The websocket for the client
-    :param path: The path the client is connected to '/file/' or '/pipe/'
     :param token: The token the client is connected with
     :param queue: The asyncio queue containing messages to send
     :return: Nothing

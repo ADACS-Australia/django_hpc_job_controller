@@ -31,6 +31,7 @@ Currently the best way to install this app in to your project is to either `git 
 Assuming that the `django_hpc_job_controller` repo is checked out in the root of your Django app, do the following to integrate it with your app.
 
 * Add `django_hpc_job_controller` to your `INSTALLED_APPS`
+* Install requirements from `django_hpc_job_controller/server/requirements.txt`
 * Run migrations `python manage.py migrate`
 * Configure settings
 * Configure cluster(s)
@@ -45,10 +46,23 @@ The server uses standard Django settings patterns.
 
 ### Configure a Cluster
 
-* Create a new cluster
-* Set the host name
-* Discuss how key/password auth works
-* Add the path to the client directory on the client
+To create a register a new cluster, log in to the Django admin and find the `Hpc Clusters` page. Add a new cluster object, and configure it as follows:
+
+* Set the host name of the cluster, this should be the IP/Domain you would use to manually log in to the cluster over SSH
+* Configure the authentication options, there are 3 available options:-
+  * Passphrase protected SSH private key authentication:-
+    * Copy the content of the passphrase protected key in to the key field
+    * Add the user name to log in to the system with in the user name field
+    * Put the passphrase of the SSH key in the password field
+  * Unprotected SSH private key authentication:-
+    * Copy the content of the private key in to the key field
+    * Add the user name to log in to the system with in the user name field
+    * Leave the password field blank
+  * User name/password authentication:-
+    * Leave the key field empty
+    * Add the user name to log in to the system with in the user name field
+    * Add the users password in to the password field
+* Add the path to the client directory on the client. This should be the path to the folder containing `client.py` on the cluster. It should not have a trailing slash, and should not contain `client.py` in the path
 * Set the batch scheduler type for this cluster
 
 ## API and Examples

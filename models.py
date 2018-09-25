@@ -1,11 +1,19 @@
 import io
+import os
 import random
+import socket
 import uuid
 from threading import Thread
 
 import paramiko as paramiko
 from django.db import models
+from django.http import StreamingHttpResponse
 from django.utils import timezone
+
+from django_hpc_job_controller.client.core.messaging.message import Message
+from django_hpc_job_controller.server.utils import send_uds_message, check_uds_result, \
+    send_message_socket, recv_message_socket
+from django_hpc_job_controller.server.settings import HPC_FILE_CONNECTION_CHUNK_SIZE
 
 
 class WebsocketToken(models.Model):
@@ -24,6 +32,22 @@ class WebsocketToken(models.Model):
 
     # If this token is for a file connection
     is_file = models.BooleanField(default=False)
+
+    def send_message(self, message):
+        """
+        Sends a message to the websocket associated with this token
+
+        :param message: a Message object to send
+        :return: Nothing
+        """
+        # Create the encapsulating message
+        encapsulated = Message(Message.TRANSMIT_WEBSOCKET_MESSAGE)
+        encapsulated.push_string(str(self.token))
+        encapsulated.push_bytes(message.to_bytes())
+
+        # Send the message
+        check_uds_result(send_uds_message(encapsulated))
+
 
 
 class HpcCluster(models.Model):
@@ -116,30 +140,136 @@ class HpcCluster(models.Model):
 
     def is_connected(self):
         """
-        Check if this cluster is currently connected
+        Checks if this cluster is currently online
 
-        :return: True if this cluster is connected otherwise False
+        :return: A WebsocketToken object if the cluster is online otherwise None
         """
+        # Create a message to check if the cluster is online
+        msg = Message(Message.IS_CLUSTER_ONLINE)
+        msg.push_uint(self.id)
 
-        from .server.api import is_cluster_online
-        return is_cluster_online(self)
+        # Send the message
+        msg = send_uds_message(msg)
+        check_uds_result(msg)
+
+        # Get the id of the WebsocketToken for this cluster
+        token_id = msg.pop_uint()
+
+        # If the token id is 0, then the cluster is not currently connected
+        if not token_id:
+            return None
+
+        # The cluster is online, get the websocket token object and return
+        return WebsocketToken.objects.get(cluster=self, id=token_id, is_file=False)
+
+    def fetch_remote_file(self, path):
+        """
+        Fetches a file, path, from a this cluster over a websocket connection, and returns a Streaming HTTP response
+
+        :param path: The path to the file to fetch
+
+        :return: A Django StreamingHTTPResponse
+        """
+        # Check that the cluster is online
+        token = self.is_connected()
+        if not token:
+            raise Exception("Cluster ({}) is not currently online or connected.".format(str(self)))
+
+        # Create a token to use for the file websocket
+        file_token = WebsocketToken.objects.create(cluster=self, is_file=True)
+
+        # Create the unique socket identifier
+        from django_hpc_job_controller.server.startup import HPC_IPC_UNIX_SOCKET
+        socket_path = HPC_IPC_UNIX_SOCKET + "." + str(file_token.token)
+
+        # Make sure the socket does not already exist
+        try:
+            os.unlink(socket_path)
+        except OSError:
+            if os.path.exists(socket_path):
+                raise
+
+        # Create a new unix domain socket server to receive the incoming data
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        sock.bind(socket_path)
+
+        # Set the maximum timeout to 10 seconds
+        sock.settimeout(10)
+
+        # Listen for incoming connections
+        sock.listen(1)
+
+        # Ask the cluster to raise a new websocket connection for this file
+        msg = Message(Message.INITIATE_FILE_CONNECTION)
+
+        # Add the token to the message
+        msg.push_string(str(file_token.token))
+
+        # Send the message to the cluster
+        token.send_message(msg, token)
+
+        try:
+            # Wait for the connection
+            connection, client_address = sock.accept()
+        except socket.timeout:
+            raise Exception(
+                "Attempt to create a file connection to the cluster didn't respond in a satisfactory length "
+                "of time")
+        except:
+            raise
+
+        # Set the path to the file we want to fetch
+        msg = Message(Message.SET_FILE_CONNECTION_FILE_DETAILS)
+        msg.push_string(path)
+        msg.push_ulong(HPC_FILE_CONNECTION_CHUNK_SIZE)
+        send_message_socket(msg, connection)
+
+        # Read the result and verify that the file exists
+        msg = recv_message_socket(connection)
+
+        # Check the result
+        check_uds_result(msg)
+
+        # Get the file size
+        file_size = msg.pop_uint()
+
+        # Now we loop until we have all the chunks from the client
+        def stream_generator():
+            while True:
+                # Read the next chunk
+                msg = recv_message_socket(connection)
+
+                # Ignore the message identifier
+                msg.pop_uint()
+
+                # Get the raw data for this chunk
+                chunk = msg.pop_bytes()
+
+                # Check if this chunk indicates the end of the file
+                if not len(chunk):
+                    print("Done")
+                    break
+
+                # Return this chunk
+                yield chunk
+
+        # Create the streaming http response object
+        response = StreamingHttpResponse(stream_generator())
+
+        # Set the file size so the browser knows how big the file is
+        response['Content-Length'] = file_size
+
+        # Set the file name of the file the user is downloading
+        response['Content-Disposition'] = "attachment; filename=%s" % os.path.basename(path)
+
+        # Finally return the response
+        return response
 
 
 class HpcJob(models.Model):
     """
     A Job
     """
-
-    # A job is submitted if it cannot be immediately queued on a cluster (ie, all available clusters are offline)
-    SUBMITTED = 0
-    # A job is queued if it is in the queue on the cluster it is to run on
-    QUEUED = 1
-    # A job is running if it is currently running on the cluster it is to run on
-    RUNNING = 2
-    # A job is completed if it is finished running on the cluster without error
-    COMPLETED = 3
-    # A job is error if it crashed at any point during it's execution
-    ERROR = 4
 
     # The cluster this job is utilising
     cluster = models.ForeignKey(HpcCluster, on_delete=models.CASCADE, null=True, default=None)
