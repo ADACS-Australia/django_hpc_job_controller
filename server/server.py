@@ -1,14 +1,20 @@
 import asyncio
 import struct
 from asyncio import Queue
+from threading import Thread
 from time import sleep
 
 from django.apps import apps
+from django.core.exceptions import AppRegistryNotReady
 
 from django_hpc_job_controller.client.core.messaging.message import Message
+from django_hpc_job_controller.server.cluster_manager import handle_message
+from django_hpc_job_controller.server.file_manager import file_handler
 
 # The list of currently connected clusters in format
 # {Websocket: {'token': WebsocketToken object, 'queue': Queue object}}
+from django_hpc_job_controller.server.utils import check_pending_jobs
+
 CONNECTION_MAP = {}
 
 
@@ -54,7 +60,7 @@ def poll_cluster_connections():
     :return: Never returns
     """
     # Wait for apps to be ready
-    while not apps.apps_ready:
+    while not apps.apps_ready or not apps.models_ready:
         sleep(0.1)
 
     # Delete all existing websocket tokens
@@ -69,89 +75,44 @@ def poll_cluster_connections():
             # Ask the cluster to connect
             cluster.try_connect()
 
+        # Create a thread to check pending jobs
+        Thread(target=check_pending_jobs, args=[], daemon=True).start()
+
         # Wait for 60 seconds before retrying
         sleep(60)
 
 
-async def file_handler(sock, token):
-    """
-    Handles the proxying of the websocket to Django over the unix domain socket
-
-    :param sock: The websocket connection
-    :param token: The websocket token for the websocket connection
-    :return: Nothing
-    """
-    from django_hpc_job_controller.server.startup import HPC_IPC_UNIX_SOCKET
-    # Create the socket
-    reader, writer = await asyncio.open_unix_connection(HPC_IPC_UNIX_SOCKET + "." + str(token.token))
-
-    # Wait for the server to send us the name of the file to send to the client
-    msg = await recv_message_reader(reader)
-
-    # Confirm that the message is SET_FILE_CONNECTION_FILE_DETAILS
-    if not msg.pop_uint() == Message.SET_FILE_CONNECTION_FILE_DETAILS:
-        raise Exception("Didn't get expected message reading from UDS, expected SET_FILE_CONNECTION_FILE_DETAILS")
-
-    # Send the message on to the client
-    await sock.send(msg.to_bytes())
-
-    # Wait for the response
-    msg = await sock.recv()
-
-    # Send the message to the uds server
-    send_message_writer(msg, writer, True)
-
-    # Now we loop reading each each chunk and waiting for a zero sized chunk
-    while True:
-        # Wait for the response
-        msg = await sock.recv()
-
-        # Convert the data to a message
-        msg = Message(data=msg)
-
-        # Check that the message is SEND_FILE_CHUNK
-        if not msg.pop_uint() == Message.SEND_FILE_CHUNK:
-            raise Exception("Didn't get expected message reading from File Connection, expected SEND_FILE_CHUNK")
-
-        # Send the message back to the uds server
-        send_message_writer(msg, writer)
-
-        try:
-            # This exists to catch when the socket closes, since write doesn't raise an exception which is bizarre
-            await writer.drain()
-        except:
-            return
-
-        # Check if this chunk indicates the end of the file stream
-        if not len(msg.pop_bytes()):
-            break
-
-
-async def on_receive(sock, token, queue, message):
-    print("Got message from " + token.cluster.host_name + " with token " + str(token.token) + ": " + str(message))
-
-
-async def send_handler(sock, token, queue):
+async def send_handler(sock, queue):
     """
     Handles sending messages from the queue to the client
 
     :param sock: The websocket for the client
-    :param token: The token the client is connected with
     :param queue: The asyncio queue containing messages to send
     :return: Nothing
     """
-
+    # Automatically handles sending messages added to the queue
     while True:
+        # Wait for a message from the queue
         message = await queue.get()
-        print("Sending message", message)
+        # Send the message
         await sock.send(message)
 
 
 async def recv_handler(sock, token, queue):
+    """
+    Handles receiving messages from the client
+
+    :param sock: The websocket for the client
+    :param token: The token the client is connected with
+    :param queue: The asyncio queue containing messages to be sent
+    :return: Nothing
+    """
+    # Loop forever
     while True:
+        # Wait for a message to arrive on the websocket
         message = await sock.recv()
-        print("Got message", message)
-        await on_receive(sock, token, queue, message)
+        # Handle the message
+        await handle_message(sock, token, queue, message)
 
 
 async def handle_client(sock, path, token):
@@ -180,7 +141,10 @@ async def handle_client(sock, path, token):
         consumer_task = asyncio.ensure_future(
             recv_handler(sock, token, queue))
         producer_task = asyncio.ensure_future(
-            send_handler(sock, token, queue))
+            send_handler(sock, queue))
+
+        # Create a thread to check pending jobs
+        Thread(target=check_pending_jobs, args=[], daemon=True).start()
 
         # Wait for one of the tasks to finish
         done, pending = await asyncio.wait(

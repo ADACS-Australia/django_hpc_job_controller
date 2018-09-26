@@ -8,3 +8,6 @@ HPC_IPC_UNIX_SOCKET = getattr(settings, 'HPC_IPC_UNIX_SOCKET', '/tmp/job_control
 
 # The size of each chunk to send over the file websocket
 HPC_FILE_CONNECTION_CHUNK_SIZE = getattr(settings, 'HPC_FILE_CONNECTION_CHUNK_SIZE', 1024*1024)
+
+# The class path used for HpcJob if inherited, otherwise HpcJob itself
+HPC_JOB_CLASS = getattr(settings, 'HPC_JOB_CLASS', "django_hpc_job_controller.models.HpcJob")

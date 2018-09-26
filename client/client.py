@@ -47,6 +47,11 @@ class JobControllerDaemon(Daemon):
         # Add the handler to the logger
         self.logger.addHandler(handler)
 
+        # Silence websockets logging
+        logger = logging.getLogger('websockets')
+        logger.setLevel(logging.ERROR)
+        logger.addHandler(logging.StreamHandler())
+
     def run(self):
         """
         The main entry point of the daemon

@@ -43,6 +43,7 @@ The server uses standard Django settings patterns.
 * `HPC_WEBSOCKET_PORT` is the port to listen on for websocket connections. Default `8001`
 * `HPC_IPC_UNIX_SOCKET` is the path to the Unix Domain Socket to use for inter-process communication between Django and the websocket server. Websockets used for file transfers will extend this path with a `.` followed by the uuid of the token used for the connection. So for example if `HPC_IPC_UNIX_SOCKET` was `/tmp/job_controller.sock` then Django <---> websocket server communication will be done over `/tmp/job_controller.sock`, while you may see `/tmp/job_controller.sock.xxxx-xxxx-xxxx-xxxx` files used for IPC for the websockets created to transmit files. Default is `/tmp/job_controller.sock`
 * `HPC_FILE_CONNECTION_CHUNK_SIZE` is the size of each chunk of a file to be sent over websockets used for file transfers. Default is 1Mb (1024*1024)
+* `HPC_JOB_CLASS` is the class path to the job class to use. This exists to define a custom job class that inherits from the built in HpcJob class. Default is `django_hpc_job_controller.models.HpcJob`
 
 ### Configure a Cluster
 

@@ -1,5 +1,6 @@
 import io
 import os
+import pickle
 import random
 import socket
 import uuid
@@ -11,8 +12,9 @@ from django.http import StreamingHttpResponse
 from django.utils import timezone
 
 from django_hpc_job_controller.client.core.messaging.message import Message
+from django_hpc_job_controller.client.scheduler.status import JobStatus
 from django_hpc_job_controller.server.utils import send_uds_message, check_uds_result, \
-    send_message_socket, recv_message_socket
+    send_message_socket, recv_message_socket, get_job_submission_lock, check_pending_jobs
 from django_hpc_job_controller.server.settings import HPC_FILE_CONNECTION_CHUNK_SIZE
 
 
@@ -47,7 +49,6 @@ class WebsocketToken(models.Model):
 
         # Send the message
         check_uds_result(send_uds_message(encapsulated))
-
 
 
 class HpcCluster(models.Model):
@@ -113,6 +114,7 @@ class HpcCluster(models.Model):
     def try_connect(self, force=False):
         """
         Checks if this cluster is connected, and if not tries to connect
+
         :return: Nothing
         """
 
@@ -206,7 +208,7 @@ class HpcCluster(models.Model):
         msg.push_string(str(file_token.token))
 
         # Send the message to the cluster
-        token.send_message(msg, token)
+        token.send_message(msg)
 
         try:
             # Wait for the connection
@@ -247,7 +249,6 @@ class HpcCluster(models.Model):
 
                 # Check if this chunk indicates the end of the file
                 if not len(chunk):
-                    print("Done")
                     break
 
                 # Return this chunk
@@ -274,17 +275,17 @@ class HpcJob(models.Model):
     # The cluster this job is utilising
     cluster = models.ForeignKey(HpcCluster, on_delete=models.CASCADE, null=True, default=None)
 
-    # The number of CPU cores this job requires
-    cpus = models.IntegerField(default=1)
-
-    # The number of Mb of ram this job requires
-    ram = models.IntegerField(default=100)
-
     # The current status of this job
-    job_status = models.IntegerField(null=True, default=None)
+    job_status = models.IntegerField(null=True, default=JobStatus.DRAFT)
+
+    # The time the job was marked pending
+    job_pending_time = models.DateTimeField(blank=True, null=True, default=None)
+
+    # The time the job was marked as submitting (Waiting for a response from a client)
+    job_submitting_time = models.DateTimeField(blank=True, null=True, default=None)
 
     # The time the job was submitted
-    job_submitted_time = models.DateTimeField(default=timezone.now)
+    job_submitted_time = models.DateTimeField(blank=True, null=True, default=None)
 
     # The time the job was queued
     job_queued_time = models.DateTimeField(blank=True, null=True, default=None)
@@ -292,44 +293,66 @@ class HpcJob(models.Model):
     # The time the job finished or crashed with an error
     job_finished_time = models.DateTimeField(blank=True, null=True, default=None)
 
-    def choose_cluster(self):
+    # Any additional details about the job
+    job_details = models.TextField(blank=True, null=True, default=None)
+
+    # Parameters for the job
+    job_parameters = models.BinaryField(blank=True, null=True, default=None)
+
+    # The remote job id
+    remote_job_id = models.BigIntegerField(blank=True, null=True, default=None)
+
+    def choose_cluster(self, parameters):
         """
         Chooses the most appropriate cluster for the job to run on
 
         Should be overridden
 
+        :type parameters: Job parameters that may be used to choose a correct cluster for this job
+
         :return: The cluster chosen to run the job on
         """
+        # Get all clusters currently online
+        clusters = HpcCluster.objects.all()
+
+        online_clusters = []
+        for c in clusters:
+            if c.is_connected():
+                online_clusters.append(c)
+
         # Return an online cluster at random
-        return random.choice(HpcCluster.objects.filter(is_online=True))
+        return random.choice(online_clusters)
 
-    def set_required_cpus(self, cpus):
-        """
-        Set's the number of cpus the job requires
-
-        :param cpus: The number of cpus
-        :return: self
-        """
-        self.cpus = cpus
-        self.save()
-        return self
-
-    def set_required_memory(self, memory):
-        """
-        Set's the amount of memory in Mb the job requires
-
-        :param memory: The amount of memory
-        :return: self
-        """
-        self.ram = memory
-        self.save()
-        return self
-
-    def submit(self):
+    def submit(self, parameters):
         """
         Submits this job to the cluster
 
         Should not be overridden
 
+        :param parameters: Any python picklable object containing the information to be sent to the client
+
         :return: The current status of the job (Either SUBMITTED or QUEUED)
         """
+        # Check that the job is currently a draft
+        if self.job_status != JobStatus.DRAFT:
+            raise Exception("Attempt to submit a job that is already submitted is invalid")
+
+        # Pickle the parameter data
+        self.job_parameters = pickle.dumps(parameters)
+
+        # Choose an appropriate cluster for this job
+        self.cluster = self.choose_cluster(parameters)
+
+        # Mark the job as submitted
+        self.job_status = JobStatus.PENDING
+
+        # Set the submission time
+        self.job_pending_time = timezone.now()
+
+        # Save this job
+        self.save()
+
+        # Attempt to submit the job to the client
+        check_pending_jobs()
+
+

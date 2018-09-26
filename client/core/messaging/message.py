@@ -21,6 +21,7 @@ class Message:
 
     # Used internally to send a message over the django/websocket server unix domain socket
     # string: The token representing the websocket connection to send the message over
+    # bool: If the message should be delivered, then await a response before returning
     # bytes: The message to send over the websocket
     TRANSMIT_WEBSOCKET_MESSAGE = 3
 
@@ -36,6 +37,15 @@ class Message:
     # Sends a file chunk to the server
     # bytes: The data for this chunk - if the len is 0 then there are no more chunks
     SEND_FILE_CHUNK = 1002
+
+    # Submits a job on the remote client
+    # Server -> Client
+    # uint: The HpcJob id
+    # bytes: Any parameters to be sent to the job (this is a python pickle)
+
+    # Client -> Server
+    # uint: The HpcJob id
+    SUBMIT_JOB = 1003
 
     def __init__(self, msg_id=None, data=None):
         """
