@@ -1,7 +1,9 @@
 import importlib
+import os
 import pickle
 import socket
 import struct
+import uuid
 from datetime import timedelta
 
 from django.utils import timezone
@@ -105,6 +107,7 @@ def get_job_model_instance():
     # Import and return the class
     return getattr(importlib.import_module('.'.join(class_bits[:-1])), class_bits[-1])
 
+
 def check_pending_jobs():
     """
     Checks for any jobs marked pending and attempts to submit them
@@ -157,3 +160,85 @@ def check_pending_jobs():
                         # The job did not successfully submit, reset it's state back to pending
                         job.job_status = JobStatus.PENDING
                         job.save()
+
+
+def create_uds_server(socket_path, timeout=10):
+    """
+    Creates a unix domain socket server with the specified identifier and timeout
+
+    :param socket_path: A string uniquely identifying the path to the connection
+    :param timeout: The max amount of time to wait for a client
+    :return: The socket server
+    """
+    # Make sure the socket does not already exist
+    try:
+        os.unlink(socket_path)
+    except OSError:
+        if os.path.exists(socket_path):
+            raise
+
+    # Create a new unix domain socket server to receive the incoming data
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    sock.bind(socket_path)
+
+    # Set the maximum timeout to 10 seconds
+    sock.settimeout(timeout)
+
+    # Listen for incoming connections
+    sock.listen(1)
+
+    # Return the listening socket
+    return sock
+
+
+def send_message_assure_response(msg, cluster):
+    """
+    Special function that creates a unix domain socket server, sends a websocket message and then waits for a response
+    on the unix domain socket. This is used as a utility function to syncronise async websocket responses
+
+    :param cluster: The HpcCluster to send the message to
+    :param msg: The message to send
+    :return: The response message
+    """
+    # Create the uuid identifier
+    identifier = str(uuid.uuid4())
+
+    # Create the socket server
+    socket_path = HPC_IPC_UNIX_SOCKET + "." + identifier
+    sock = create_uds_server(socket_path)
+
+    # Create the encapsulated message
+    encapsulated_msg = Message(Message.TRANSMIT_ASSURED_RESPONSE_WEBSOCKET_MESSAGE)
+    encapsulated_msg.push_string(identifier)
+    encapsulated_msg.push_bytes(msg.to_bytes())
+
+    # Check that the cluster is online
+    token = cluster.is_connected()
+    if not token:
+        raise Exception("Cluster ({}) is not currently online or connected.".format(str(cluster)))
+
+    # Send the message to the cluster
+    token.send_message(encapsulated_msg)
+
+    try:
+        # Wait for the connection
+        connection, client_address = sock.accept()
+    except socket.timeout:
+        raise Exception(
+            "Attempt to await a response from the cluster didn't respond in a satisfactory length "
+            "of time")
+    except:
+        raise
+
+    # Read the result and verify that the file exists
+    msg = recv_message_socket(connection)
+
+    # Clean up the socket
+    sock.close()
+    try:
+        os.unlink(socket_path)
+    except OSError:
+        if os.path.exists(socket_path):
+            raise
+
+    return msg

@@ -1,10 +1,13 @@
 import asyncio
+import importlib
 import logging
+import os
 import pickle
 from threading import Thread
 
 import websockets
 
+from .db import get_job_by_ui_id, update_job
 from .file_controller import create_file_connection
 from .messaging.message import Message
 
@@ -16,8 +19,27 @@ class JobController:
         self.settings = settings
         self.sock = None
         self.queue = asyncio.Queue()
+        self.scheduler_klass = self.get_scheduler_instance()
 
-    async def handle_message(self, message):
+    def get_scheduler_instance(self):
+        """
+        Returns the class specified by the HPC_SCHEDULER_CLASS setting
+
+        :return: The Class identified by HPC_SCHEDULER_CLASS
+        """
+        # Split the class path by full stops
+        class_bits = self.settings.HPC_SCHEDULER_CLASS.split('.')
+
+        # Import and return the class
+        return getattr(importlib.import_module('.'.join(class_bits[:-1])), class_bits[-1])
+
+    async def handle_message(self, message, identifier=None):
+        """
+        Handles an incoming websocket message
+
+        :param message: The message to handle
+        :return: Nothing
+        """
         # Convert the raw message to a Message object
         msg = Message(data=message)
 
@@ -29,25 +51,140 @@ class JobController:
             # Create a new thread to handle a file connection
             Thread(target=create_file_connection, args=[msg.pop_string(), self.settings], daemon=True).start()
         elif msg_id == Message.SUBMIT_JOB:
-            print("Job is getting submitted")
-            hpc_job_id = msg.pop_uint()
+            # Get the ui id of the job
+            ui_id = msg.pop_uint()
+            # Get the parameters for the job
             job_params = pickle.loads(msg.pop_bytes())
 
+            logging.info("Attempting to submit new job with UI ID: {}".format(ui_id))
+
             # Check if this job has already been submitted by us
-                # If not, submit the job and record that we have submitted the job
+            job = await get_job_by_ui_id(ui_id)
+
+            if job and job['job_id']:
                 # If so, check the state of the job and notify the server of it's current state
+                scheduler = self.scheduler_klass(self.settings, ui_id, job['job_id'])
+                logging.info("Created scheduler with existing job id {} {}".format(scheduler.ui_id, scheduler.job_id))
+            else:
+                # If not, submit the job and record that we have submitted the job
+                logging.info("Submitting new job with ui id {}".format(ui_id))
 
-            print("HpcJob ID:", hpc_job_id)
-            print("Job params:", job_params)
+                # Instantiate the scheduler
+                scheduler = self.scheduler_klass(self.settings, ui_id, None)
 
-            # Acknowledge the submission of the job
+                # Create a new job object and save it
+                job = {'ui_id': ui_id, 'job_id': None}
+                await update_job(job)
+
+                # Submit the job
+                job_id = scheduler.submit(job_params)
+
+                # Update and save the job
+                job['job_id'] = job_id
+                await update_job(job)
+
+                logging.info("Successfully submitted job with ui id {}, got scheduler id {}".format(job['ui_id'], job['job_id']))
+
             result = Message(Message.SUBMIT_JOB)
-            result.push_uint(hpc_job_id)
+            result.push_uint(1)
             # Send the result
             await self.sock.send(result.to_bytes())
-        # await sock.send(message)
+        elif msg_id == Message.TRANSMIT_ASSURED_RESPONSE_WEBSOCKET_MESSAGE:
+            # Read the identifier
+            response_identifier = msg.pop_string()
+            # Handle the message
+            await self.handle_message(msg.pop_bytes(), response_identifier)
+        elif msg_id == Message.GET_FILE_TREE:
+            # Get the UI ID of the job to get the files for
+            ui_id = msg.pop_uint()
+            # Get the path to find the get the files for
+            path = msg.pop_string()
+            # Check if we are getting a recursive tree
+            is_recursive = msg.pop_bool()
+
+            logging.info("Getting file list for job with ui id {}, path {}, recursive {}, identifier {}".format(ui_id, path, is_recursive, identifier))
+
+            # Instantiate the scheduler
+            scheduler = self.scheduler_klass(self.settings, ui_id, None)
+
+            # Get the actual path on the filesystem for the files requested
+            root_path = os.path.join(scheduler.get_working_directory(), path if len(path) and path[0] != os.sep else '')
+
+            # Get the list of files requested
+            file_list = []
+            if is_recursive:
+                # This is a recursive searh
+                for root, dirnames, filenames in os.walk(root_path):
+                    # Iterate over the directories
+                    for item in dirnames:
+                        # Construct the real path to this directory
+                        real_file_name = os.path.join(root, item)
+                        # Add the file entry
+                        file_list.append({
+                            # Remove the leading working directory
+                            'path': real_file_name[len(scheduler.get_working_directory()):],
+                            'is_dir': True,
+                            'size': os.path.getsize(real_file_name)
+                        })
+
+                    for item in filenames:
+                        # Construct the real path to this file
+                        real_file_name = os.path.join(root, item)
+                        # Add the file entry
+                        file_list.append({
+                            # Remove the leading working directory
+                            'path': real_file_name[len(scheduler.get_working_directory()):],
+                            'is_dir': False,
+                            'size': os.path.getsize(real_file_name)
+                        })
+            else:
+                # Not a recursive search
+                for item in os.listdir(root_path):
+                    # Construct the real path to this file/directory
+                    real_file_name = os.path.join(root_path, item)
+                    # Add the file entry
+                    file_list.append({
+                        # Remove the leading slash
+                        'path': real_file_name[len(scheduler.get_working_directory()):],
+                        'is_dir': os.path.isdir(real_file_name),
+                        'size': os.path.getsize(real_file_name)
+                    })
+
+            # Build the return message
+            result = Message(Message.GET_FILE_TREE)
+            result.push_uint(len(file_list))
+            for f in file_list:
+                result.push_string(f['path'])
+                result.push_bool(f['is_dir'])
+                result.push_ulong(f['size'])
+
+            # Send the message back to the server
+            await self.send_assured_message(result, identifier)
+
+            # Acknowledge the submission of the job
+            #result = Message(Message.SUBMIT_JOB)
+            #result.push_uint(hpc_job_id)
+            # Send the result
+            #await self.sock.send(result.to_bytes())
+            # await sock.send(message)
         else:
             logging.info("Got unknown message id {}".format(msg_id))
+
+    async def send_assured_message(self, message, identifier):
+        """
+        Sends and assured encapsulated message over the websocket back to the server
+
+        :param message: The message to send
+        :param identifier: The identifier for this transaction
+        :return: Nothing
+        """
+        # Create the encapsulated message
+        encapsulated_msg = Message(Message.TRANSMIT_ASSURED_RESPONSE_WEBSOCKET_MESSAGE)
+        encapsulated_msg.push_string(identifier)
+        encapsulated_msg.push_bytes(message.to_bytes())
+
+        # Send the message
+        await self.queue.put(encapsulated_msg.to_bytes())
 
     async def send_handler(self):
         """

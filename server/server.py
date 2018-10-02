@@ -5,16 +5,14 @@ from threading import Thread
 from time import sleep
 
 from django.apps import apps
-from django.core.exceptions import AppRegistryNotReady
 
 from django_hpc_job_controller.client.core.messaging.message import Message
 from django_hpc_job_controller.server.cluster_manager import handle_message
 from django_hpc_job_controller.server.file_manager import file_handler
+from django_hpc_job_controller.server.utils import check_pending_jobs
 
 # The list of currently connected clusters in format
 # {Websocket: {'token': WebsocketToken object, 'queue': Queue object}}
-from django_hpc_job_controller.server.utils import check_pending_jobs
-
 CONNECTION_MAP = {}
 
 

@@ -23,6 +23,8 @@ The client has it's own independent settings that are outside the scope of Djang
 * `HPC_LOG_DIRECTORY` is the directory where the log files will be emitted. Default: `client/log/`
 * `HPC_DAEMON_PID_FILE` is the path to the process id used by the daemon. Default: `/tmp/job_controller.pid`
 * `HPC_WEBSOCKET_SERVER` is the fully qualified URL of the websocket server. Default `ws://localhost:8001`. This should follow the format `ws(s)://host:port` with no trailing slash.
+* `HPC_SCHEDULER_CLASS` is the class path to the class that inherits from the `scheduler.scheduler.Scheduler` class. Typically you would inherit from the relevant scheduler class to add your own business logic, then set this setting to the path to your inherited class. Typically it is best to put the inherited class in the settings directory. Default `scheduler.scheduler.Scheduler`
+* `HPC_JOB_WORKING_DIRECTORY` is the path where the working directory for jobs is. It follows the format `HPC_JOB_WORKING_DIRECTORY/{ui_job_id}/`. Default `/tmp/jobs/`
 
 ## Server Setup and Configuration
 
@@ -64,7 +66,6 @@ To create a register a new cluster, log in to the Django admin and find the `Hpc
     * Add the user name to log in to the system with in the user name field
     * Add the users password in to the password field
 * Add the path to the client directory on the client. This should be the path to the folder containing `client.py` on the cluster. It should not have a trailing slash, and should not contain `client.py` in the path
-* Set the batch scheduler type for this cluster
 
 ## API and Examples
 

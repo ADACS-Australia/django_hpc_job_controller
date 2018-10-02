@@ -21,9 +21,13 @@ class Message:
 
     # Used internally to send a message over the django/websocket server unix domain socket
     # string: The token representing the websocket connection to send the message over
-    # bool: If the message should be delivered, then await a response before returning
     # bytes: The message to send over the websocket
     TRANSMIT_WEBSOCKET_MESSAGE = 3
+
+    # Used internally as a encapsulation around a guaranteed response message
+    # string: Result identifier
+    # bytes: The message to send over the websocket
+    TRANSMIT_ASSURED_RESPONSE_WEBSOCKET_MESSAGE = 4
 
     # Creates a new file controller websocket connection for transmitting a file
     # string: websocket token id
@@ -46,6 +50,20 @@ class Message:
     # Client -> Server
     # uint: The HpcJob id
     SUBMIT_JOB = 1003
+
+    # Gets the list of files for a specific job
+    # Server -> Client
+    # uint: UI job id
+    # string: Relative path in output directory
+    # bool: Recursive
+
+    # Client -> Server
+    # uint: Number of files/folders
+        # string: Path (relative to job working directory)
+        # bool: Is folder
+        # ulong: File size if file
+    GET_FILE_TREE = 1004
+
 
     def __init__(self, msg_id=None, data=None):
         """

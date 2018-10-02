@@ -1,0 +1,11 @@
+#!/bin/bash
+#SBATCH -o slurm-%%j.out
+#SBATCH -e slurm-%%j.err
+#SBATCH --nodes=%(nodes)d
+#SBATCH --ntasks-per-node=%(tasks_per_node)d
+#SBATCH --mem-per-cpu=%(mem)dM
+#SBATCH --time=%(wt_hours)02d:%(wt_minutes)02d:%(wt_seconds)02d
+#SBATCH --job-name=%(job_name)s
+
+# Simple example script
+hostname

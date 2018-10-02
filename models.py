@@ -14,8 +14,9 @@ from django.utils import timezone
 from django_hpc_job_controller.client.core.messaging.message import Message
 from django_hpc_job_controller.client.scheduler.status import JobStatus
 from django_hpc_job_controller.server.utils import send_uds_message, check_uds_result, \
-    send_message_socket, recv_message_socket, get_job_submission_lock, check_pending_jobs
-from django_hpc_job_controller.server.settings import HPC_FILE_CONNECTION_CHUNK_SIZE
+    send_message_socket, recv_message_socket, get_job_submission_lock, check_pending_jobs, \
+    create_uds_server, send_message_assure_response
+from django_hpc_job_controller.server.settings import HPC_FILE_CONNECTION_CHUNK_SIZE, HPC_IPC_UNIX_SOCKET
 
 
 class WebsocketToken(models.Model):
@@ -180,26 +181,8 @@ class HpcCluster(models.Model):
         # Create a token to use for the file websocket
         file_token = WebsocketToken.objects.create(cluster=self, is_file=True)
 
-        # Create the unique socket identifier
-        from django_hpc_job_controller.server.startup import HPC_IPC_UNIX_SOCKET
-        socket_path = HPC_IPC_UNIX_SOCKET + "." + str(file_token.token)
-
-        # Make sure the socket does not already exist
-        try:
-            os.unlink(socket_path)
-        except OSError:
-            if os.path.exists(socket_path):
-                raise
-
-        # Create a new unix domain socket server to receive the incoming data
-        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        sock.bind(socket_path)
-
-        # Set the maximum timeout to 10 seconds
-        sock.settimeout(10)
-
-        # Listen for incoming connections
-        sock.listen(1)
+        # Create the named uds
+        sock = create_uds_server(HPC_IPC_UNIX_SOCKET + "." + str(file_token.token))
 
         # Ask the cluster to raise a new websocket connection for this file
         msg = Message(Message.INITIATE_FILE_CONNECTION)
@@ -322,6 +305,21 @@ class HpcJob(models.Model):
 
         # Return an online cluster at random
         return random.choice(online_clusters)
+
+    def fetch_remote_file_list(self, path="/", recursive=True):
+        """
+        Retreives the list of files at the specified relative path and returns it
+
+        :param path: The relative path in the job output directory to fetch the file list for
+        :param recursive: If the result should be the recursive list of files
+        :return: A recursive dictionary of file information
+        """
+        msg = Message(Message.GET_FILE_TREE)
+        msg.push_uint(self.id)
+        msg.push_string(path)
+        msg.push_bool(recursive)
+
+        return send_message_assure_response(msg, self.cluster)
 
     def submit(self, parameters):
         """
