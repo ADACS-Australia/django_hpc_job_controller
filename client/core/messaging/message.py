@@ -34,7 +34,8 @@ class Message:
     INITIATE_FILE_CONNECTION = 1000
 
     # Sets the file that the remote file connection is to read
-    # string: Path to file on remote machine
+    # uint: The ui of the id to fetch the file for. If this is specified then path is relative to the jobs working dir
+    # string: Path to file on remote machine. Relative to the jobs working directory if ui_id is set, else absolute path
     # ulong: Size of each chunk to send
     SET_FILE_CONNECTION_FILE_DETAILS = 1001
 
