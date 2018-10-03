@@ -3,5 +3,7 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+client/db.pickle
+
 client/venv/
 client/log/
