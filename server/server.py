@@ -5,6 +5,7 @@ from threading import Thread
 from time import sleep
 
 from django.apps import apps
+from django.db import ProgrammingError
 
 from django_hpc_job_controller.client.core.messaging.message import Message
 from django_hpc_job_controller.server.cluster_manager import handle_message
@@ -63,7 +64,12 @@ def poll_cluster_connections():
 
     # Delete all existing websocket tokens
     from django_hpc_job_controller.models import WebsocketToken
-    WebsocketToken.objects.all().delete()
+    try:
+        WebsocketToken.objects.all().delete()
+    except ProgrammingError as e:
+        print("Django HPC Job Controller: Models are not yet migrated - "
+              "please make sure to restart the django project once migrations are applied")
+        return
 
     # Loop forever
     while True:

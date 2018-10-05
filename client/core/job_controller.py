@@ -170,6 +170,9 @@ class JobController:
                     # Send the result
                     await self.sock.send(result.to_bytes())
 
+                    # Wait for a second
+                    await sleep(5)
+
                     # Check the job status in case it was queued immediately
                     await self.check_job_status(job, True)
 

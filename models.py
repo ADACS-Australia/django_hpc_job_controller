@@ -305,7 +305,7 @@ class HpcJob(models.Model):
                 online_clusters.append(c)
 
         # Return an online cluster at random
-        return random.choice(online_clusters)
+        return random.choice(online_clusters) if len(online_clusters) else None
 
     def fetch_remote_file_list(self, path="/", recursive=True):
         """
