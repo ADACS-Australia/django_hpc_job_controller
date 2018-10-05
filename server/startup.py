@@ -94,7 +94,7 @@ def websocket_server_thread():
     asyncio.set_event_loop(loop)
 
     # Create the websocket server
-    start_server = websockets.serve(new_client, 'localhost', HPC_WEBSOCKET_PORT, max_size=2 ** 32, compression=None)
+    start_server = websockets.serve(new_client, '0.0.0.0', HPC_WEBSOCKET_PORT, max_size=2 ** 32, compression=None)
 
     asyncio.ensure_future(domain_socket_server())
 

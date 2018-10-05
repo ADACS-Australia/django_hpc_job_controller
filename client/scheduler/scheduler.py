@@ -34,7 +34,7 @@ class Scheduler:
         """
         raise NotImplementedError()
 
-    def status(self, job_id):
+    def status(self):
         """
         Get the status of a job
 
@@ -43,7 +43,7 @@ class Scheduler:
         """
         raise NotImplementedError()
 
-    def cancel(self, job_id):
+    def cancel(self):
         """
         Cancel a running job
 

@@ -6,7 +6,7 @@ class Message:
     The Message class is an easy to use push/pop binary messaging framework that allows pushing and popping basic
     primitive types
     """
-    # System message id's
+    """ System message ids """
     # Used internally to represent a success condition
     # ...: Any arbitrary content may follow
     RESULT_OK = 0
@@ -29,20 +29,7 @@ class Message:
     # bytes: The message to send over the websocket
     TRANSMIT_ASSURED_RESPONSE_WEBSOCKET_MESSAGE = 4
 
-    # Creates a new file controller websocket connection for transmitting a file
-    # string: websocket token id
-    INITIATE_FILE_CONNECTION = 1000
-
-    # Sets the file that the remote file connection is to read
-    # uint: The ui of the id to fetch the file for. If this is specified then path is relative to the jobs working dir
-    # string: Path to file on remote machine. Relative to the jobs working directory if ui_id is set, else absolute path
-    # ulong: Size of each chunk to send
-    SET_FILE_CONNECTION_FILE_DETAILS = 1001
-
-    # Sends a file chunk to the server
-    # bytes: The data for this chunk - if the len is 0 then there are no more chunks
-    SEND_FILE_CHUNK = 1002
-
+    """ Job message ids """
     # Submits a job on the remote client
     # Server -> Client
     # uint: The HpcJob id
@@ -50,7 +37,34 @@ class Message:
 
     # Client -> Server
     # uint: The HpcJob id
-    SUBMIT_JOB = 1003
+    SUBMIT_JOB = 1000
+
+    # Sent by the client to the server to update the status of a job
+    # uint: The HpcJob id
+    # uint: The JobStatus
+    # string: Any additional information about this status
+    UPDATE_JOB = 1001
+
+    # Sent by the server to cancel a job
+    # uint: The HpcJob id
+    # uint: The JobStatus
+    # string: Any additional information about this status
+    CANCEL_JOB = 1002
+
+    """ File message ids"""
+    # Creates a new file controller websocket connection for transmitting a file
+    # string: websocket token id
+    INITIATE_FILE_CONNECTION = 2000
+
+    # Sets the file that the remote file connection is to read
+    # uint: The ui of the id to fetch the file for. If this is specified then path is relative to the jobs working dir
+    # string: Path to file on remote machine. Relative to the jobs working directory if ui_id is set, else absolute path
+    # ulong: Size of each chunk to send
+    SET_FILE_CONNECTION_FILE_DETAILS = 2001
+
+    # Sends a file chunk to the server
+    # bytes: The data for this chunk - if the len is 0 then there are no more chunks
+    SEND_FILE_CHUNK = 2002
 
     # Gets the list of files for a specific job
     # Server -> Client
@@ -63,8 +77,7 @@ class Message:
         # string: Path (relative to job working directory)
         # bool: Is folder
         # ulong: File size if file
-    GET_FILE_TREE = 1004
-
+    GET_FILE_TREE = 2003
 
     def __init__(self, msg_id=None, data=None):
         """

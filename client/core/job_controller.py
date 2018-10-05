@@ -3,11 +3,15 @@ import importlib
 import logging
 import os
 import pickle
+import sys
+import traceback
+from asyncio import sleep
 from threading import Thread
 
 import websockets
 
-from .db import get_job_by_ui_id, update_job
+from scheduler.status import JobStatus
+from .db import get_job_by_ui_id, update_job, delete_job, get_all_jobs
 from .file_controller import create_file_connection
 from .messaging.message import Message
 
@@ -33,10 +37,71 @@ class JobController:
         # Import and return the class
         return getattr(importlib.import_module('.'.join(class_bits[:-1])), class_bits[-1])
 
+    async def check_job_status(self, job, force_notification=False):
+        """
+        Checks a job to see what it's current status is on the cluster. If the job state has changed since we last
+        checked, then update the server. If force_notification is True, it will update the server even if the job
+        status hasn't changed
+
+        :param job: The job to check
+        :param force_notification: If we should notify the server of the job status even if it hasn't changed
+        :return: Nothing
+        """
+        # Get a scheduler for this job
+        scheduler = self.scheduler_klass(self.settings, job['ui_id'], job['job_id'])
+
+        # Get the status of the job
+        status, info = scheduler.status()
+
+        # Check if the status has changed or not
+        if job['status'] != status or force_notification:
+            # Send the status to the server to assure receipt in case the job is to be deleted from our database
+            result = Message(Message.UPDATE_JOB)
+            result.push_uint(job['ui_id'])
+            result.push_uint(status)
+            result.push_string(info)
+            await self.sock.send(result.to_bytes())
+
+            # Check if we should delete the job from the database
+            if status > JobStatus.RUNNING:
+                # Yes, the job is no longer running, remove it from the database
+                await delete_job(job)
+            else:
+                # Update and save the job status
+                job['status'] = status
+                await update_job(job)
+
+    async def check_job_status_thread(self):
+        """
+        Thread entry point for checking the current status of running jobs
+
+        :return: Nothing
+        """
+        while True:
+            try:
+                jobs = await get_all_jobs()
+                logging.info("Jobs {}".format(str(jobs)))
+                for job in jobs:
+                    await self.check_job_status(job)
+            except Exception as Exp:
+                # An exception occurred, log the exception to the log
+                logging.error("Error in check job status")
+                logging.error(type(Exp))
+                logging.error(Exp.args)
+                logging.error(Exp)
+
+                # Also log the stack trace
+                exc_type, exc_value, exc_traceback = sys.exc_info()
+                lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
+                logging.error(''.join('!! ' + line for line in lines))
+
+            await sleep(60)
+
     async def handle_message(self, message, identifier=None):
         """
         Handles an incoming websocket message
 
+        :param identifier: A transaction identifier for an assured message
         :param message: The message to handle
         :return: Nothing
         """
@@ -62,9 +127,9 @@ class JobController:
             job = await get_job_by_ui_id(ui_id)
 
             if job and job['job_id']:
+                logging.info("Job with ui id {} has already been submitted, checking status...".format(ui_id))
                 # If so, check the state of the job and notify the server of it's current state
-                scheduler = self.scheduler_klass(self.settings, ui_id, job['job_id'])
-                logging.info("Created scheduler with existing job id {} {}".format(scheduler.ui_id, scheduler.job_id))
+                await self.check_job_status(job, True)
             else:
                 # If not, submit the job and record that we have submitted the job
                 logging.info("Submitting new job with ui id {}".format(ui_id))
@@ -73,22 +138,41 @@ class JobController:
                 scheduler = self.scheduler_klass(self.settings, ui_id, None)
 
                 # Create a new job object and save it
-                job = {'ui_id': ui_id, 'job_id': None}
+                job = {'ui_id': ui_id, 'job_id': None, 'status': JobStatus.SUBMITTING}
                 await update_job(job)
 
                 # Submit the job
                 job_id = scheduler.submit(job_params)
 
-                # Update and save the job
-                job['job_id'] = job_id
-                await update_job(job)
+                # Check if there was an issue with the job
+                if not job_id:
+                    logging.info("Job with ui id {} could not be submitted"
+                                 .format(job['ui_id'], job['job_id']))
+                    await delete_job(job)
+                    # Notify the server that the job is failed
+                    result = Message(Message.UPDATE_JOB)
+                    result.push_uint(ui_id)
+                    result.push_uint(JobStatus.ERROR)
+                    result.push_string("Unable to submit job. Please check the logs as to why.")
+                    # Send the result
+                    await self.sock.send(result.to_bytes())
+                else:
+                    # Update and save the job
+                    job['job_id'] = job_id
+                    await update_job(job)
 
-                logging.info("Successfully submitted job with ui id {}, got scheduler id {}".format(job['ui_id'], job['job_id']))
+                    logging.info("Successfully submitted job with ui id {}, got scheduler id {}"
+                                 .format(job['ui_id'], job['job_id']))
 
-            result = Message(Message.SUBMIT_JOB)
-            result.push_uint(1)
-            # Send the result
-            await self.sock.send(result.to_bytes())
+                    # Notify the server that the job is successfully submitted
+                    result = Message(Message.SUBMIT_JOB)
+                    result.push_uint(ui_id)
+                    # Send the result
+                    await self.sock.send(result.to_bytes())
+
+                    # Check the job status in case it was queued immediately
+                    await self.check_job_status(job, True)
+
         elif msg_id == Message.TRANSMIT_ASSURED_RESPONSE_WEBSOCKET_MESSAGE:
             # Read the identifier
             response_identifier = msg.pop_string()
@@ -102,7 +186,8 @@ class JobController:
             # Check if we are getting a recursive tree
             is_recursive = msg.pop_bool()
 
-            logging.info("Getting file list for job with ui id {}, path {}, recursive {}, identifier {}".format(ui_id, path, is_recursive, identifier))
+            logging.info("Getting file list for job with ui id {}, path {}, recursive {}, identifier {}".format(
+                ui_id, path, is_recursive, identifier))
 
             # Instantiate the scheduler
             scheduler = self.scheduler_klass(self.settings, ui_id, None)
@@ -160,13 +245,6 @@ class JobController:
 
             # Send the message back to the server
             await self.send_assured_message(result, identifier)
-
-            # Acknowledge the submission of the job
-            #result = Message(Message.SUBMIT_JOB)
-            #result.push_uint(hpc_job_id)
-            # Send the result
-            #await self.sock.send(result.to_bytes())
-            # await sock.send(message)
         else:
             logging.info("Got unknown message id {}".format(msg_id))
 
@@ -224,6 +302,8 @@ class JobController:
         # Create the consumer and producer tasks
         consumer_task = asyncio.ensure_future(self.recv_handler())
         producer_task = asyncio.ensure_future(self.send_handler())
+
+        asyncio.ensure_future(self.check_job_status_thread())
 
         # Wait for one of the tasks to finish
         done, pending = await asyncio.wait(

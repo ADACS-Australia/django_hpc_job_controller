@@ -274,6 +274,9 @@ class HpcJob(models.Model):
     # The time the job was queued
     job_queued_time = models.DateTimeField(blank=True, null=True, default=None)
 
+    # The time the job started running
+    job_running_time = models.DateTimeField(blank=True, null=True, default=None)
+
     # The time the job finished or crashed with an error
     job_finished_time = models.DateTimeField(blank=True, null=True, default=None)
 
@@ -282,9 +285,6 @@ class HpcJob(models.Model):
 
     # Parameters for the job
     job_parameters = models.BinaryField(blank=True, null=True, default=None)
-
-    # The remote job id
-    remote_job_id = models.BigIntegerField(blank=True, null=True, default=None)
 
     def choose_cluster(self, parameters):
         """
