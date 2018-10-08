@@ -47,6 +47,10 @@ class JobController:
         :param force_notification: If we should notify the server of the job status even if it hasn't changed
         :return: Nothing
         """
+        # Check that this job actually has a local id to check
+        if not job['job_id']:
+            return
+
         # Get a scheduler for this job
         scheduler = self.scheduler_klass(self.settings, job['ui_id'], job['job_id'])
 
@@ -142,7 +146,7 @@ class JobController:
                 await update_job(job)
 
                 # Submit the job
-                job_id = scheduler.submit(job_params)
+                job_id = scheduler._submit(job_params)
 
                 # Check if there was an issue with the job
                 if not job_id:

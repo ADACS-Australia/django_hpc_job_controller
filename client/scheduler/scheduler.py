@@ -25,6 +25,18 @@ class Scheduler:
         """
         return os.path.join(self.settings.HPC_JOB_WORKING_DIRECTORY, str(self.ui_id))
 
+    def _submit(self, job_parameters):
+        """
+        Used to submit a job on the cluster
+
+        Entry to the submit function. This function is called by the job controller. Override this with any before/after
+        job submission logic specific to the scheduler. Call submit from this function
+
+        :param job_parameters: The job parameters for this job
+        :return: An integer identifier for the submitted job
+        """
+        raise NotImplementedError()
+
     def submit(self, job_parameters):
         """
         Used to submit a job on the cluster

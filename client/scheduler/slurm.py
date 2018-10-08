@@ -14,6 +14,8 @@ class Slurm(Scheduler):
     Slurm stub scheduler - this class should be inherited and extended to provide custom business logic
     """
 
+
+
     STATUS = {
         'BOOT_FAIL': 'Job terminated due to launch failure, typically due to a hardware failure (e.g. unable to boot '
                      'the node or block and the job can not be requeued).',
@@ -68,7 +70,8 @@ class Slurm(Scheduler):
             'wt_hours': floor(self.walltime / (60 * 60)),
             'wt_minutes': floor(self.walltime / 60),
             'wt_seconds': self.walltime % 60,
-            'job_name': self.job_name
+            'job_name': self.job_name,
+            'ui_job_id': self.ui_id
         }
 
     def get_slurm_script_file_path(self):
@@ -78,6 +81,31 @@ class Slurm(Scheduler):
         :return: The full path to the slurm script
         """
         return os.path.join(self.get_working_directory(), str(self.ui_id) + '.sh')
+
+    def _submit(self, job_parameters):
+        """
+        Used to submit a job on the cluster
+
+        Entry to the submit function. This function is called by the job controller. Override this with any before/after
+        job submission logic specific to the scheduler. Call submit from this function
+
+        :param job_parameters: The job parameters for this job
+        :return: An integer identifier for the submitted job
+        """
+        # Get the output path for this job
+        working_directory = self.get_working_directory()
+
+        # Make sure that the directory is deleted if it already exists
+        try:
+            shutil.rmtree(working_directory)
+        except:
+            pass
+
+        # Make sure the working directory is recreated
+        os.makedirs(working_directory, 0o770, True)
+
+        # Actually submit the job
+        return self.submit(job_parameters)
 
     def submit(self, job_parameters):
         """
@@ -94,15 +122,6 @@ class Slurm(Scheduler):
 
         # Get the output path for this job
         working_directory = self.get_working_directory()
-
-        # Make sure that the directory is deleted if it already exists
-        try:
-            shutil.rmtree(working_directory)
-        except:
-            pass
-
-        # Make sure the working directory is recreated
-        os.makedirs(working_directory, 0o770, True)
 
         # Get the path to the slurm script
         slurm_script = self.get_slurm_script_file_path()

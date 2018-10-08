@@ -60,14 +60,24 @@ class FileController:
                     self.file_chunk_size = msg.pop_ulong()
 
                     # Check if we need to construct an absolute file path from a relative path
+                    is_valid = True
                     if self.ui_id:
                         scheduler = self.scheduler_klass(self.settings, self.ui_id, None)
                         self.file_path = os.path.join(scheduler.get_working_directory(), self.file_path)
+                        self.file_path = os.path.abspath(self.file_path)
+                        # Fetching job files must only fetch files within the job directory
+                        if not self.file_path.startswith(scheduler.get_working_directory()):
+                            # Someone tried to escape the job directory!
+                            is_valid = False
 
                     # Check that the file exists and isn't a directory
-                    if not os.path.exists(self.file_path) or os.path.isdir(self.file_path):
+                    if not os.path.exists(self.file_path) or os.path.isdir(self.file_path) or not is_valid:
                         result = Message(Message.RESULT_FAILURE)
                         result.push_string("File {} does not exist on the remote cluster.".format(self.file_path))
+                        # Send the result
+                        await sock.send(result.to_bytes())
+                        # Nothing left to do
+                        return
                     else:
                         result = Message(Message.RESULT_OK)
                         self.file = open(self.file_path, "rb")
@@ -106,6 +116,7 @@ def create_file_connection(token, settings):
     """
     Creates a new file controller with the specified token
 
+    :param settings: The settings from settings.py
     :param token: The token to use for the connection
     :return: Nothing
     """
