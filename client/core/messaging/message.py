@@ -29,6 +29,12 @@ class Message:
     # bytes: The message to send over the websocket
     TRANSMIT_ASSURED_RESPONSE_WEBSOCKET_MESSAGE = 4
 
+    # Used by the server to question if the client is still responding
+    HEARTBEAT_PING = 5
+
+    # Used by the client to respond to the servers ping request
+    HEARTBEAT_PONG = 6
+
     """ Job message ids """
     # Submits a job on the remote client
     # Server -> Client

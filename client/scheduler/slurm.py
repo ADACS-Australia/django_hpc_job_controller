@@ -14,8 +14,6 @@ class Slurm(Scheduler):
     Slurm stub scheduler - this class should be inherited and extended to provide custom business logic
     """
 
-
-
     STATUS = {
         'BOOT_FAIL': 'Job terminated due to launch failure, typically due to a hardware failure (e.g. unable to boot '
                      'the node or block and the job can not be requeued).',

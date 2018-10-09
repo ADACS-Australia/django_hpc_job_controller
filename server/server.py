@@ -1,5 +1,8 @@
 import asyncio
+import logging
 import struct
+import sys
+import traceback
 from asyncio import Queue
 from threading import Thread
 from time import sleep
@@ -10,12 +13,14 @@ from django.db import ProgrammingError
 from django_hpc_job_controller.client.core.messaging.message import Message
 from django_hpc_job_controller.server.cluster_manager import handle_message
 from django_hpc_job_controller.server.file_manager import file_handler
-from django_hpc_job_controller.server.utils import check_pending_jobs
+from django_hpc_job_controller.server.utils import check_pending_jobs, send_message_assure_response
 
 # The list of currently connected clusters in format
 # {Websocket: {'token': WebsocketToken object, 'queue': Queue object}}
 CONNECTION_MAP = {}
 
+# Get the logger
+logger = logging.getLogger(__name__)
 
 def send_message_writer(message, sock, raw=False):
     """
@@ -52,6 +57,65 @@ async def recv_message_reader(sock):
     return Message(data=data)
 
 
+def heartbeat_thread():
+    """
+    Loops forever polling the connected clients and marking them disconnected in case they don't respond within 15 seconds
+
+    :return: Nothing
+    """
+    while True:
+        try:
+            # Iterate over all clusters
+            from django_hpc_job_controller.models import HpcCluster
+            for cluster in HpcCluster.objects.all():
+                # Ask the cluster to connect
+                token = cluster.is_connected()
+                if token:
+                    msg = Message(Message.HEARTBEAT_PING)
+                    try:
+                        msg = send_message_assure_response(msg)
+                        if msg.pop_uint() != Message.HEARTBEAT_PONG:
+                            raise Exception("Client heartbeat did not return an expected pong")
+                    except:
+                        logger.info("Client didn't respond to a heartbeat in a satisfactory length of time, marking"
+                                    "it dead.")
+
+                        # Get the socket for this token
+                        sock, _ = get_socket_from_token(token)
+
+                        try:
+                            # At least attempt to close the websocket if it's still open
+                            sock.close()
+                        except:
+                            pass
+
+                        # The client died, or disconnected, get the cluster
+                        cluster = token.cluster
+
+                        # Remove the client from the connection map so the cluster appears offline
+                        del CONNECTION_MAP[sock]
+
+                        # Try to force reconnect the cluster if this was not a file connection
+                        cluster.try_connect(True)
+
+            # Wait for 5 seconds before retrying
+            sleep(5)
+        except Exception as e:
+            # An exception occurred, log the exception to the log
+            logger.error("Error in heartbeat_thread")
+            logger.error(type(e))
+            logger.error(e.args)
+            logger.error(e)
+
+            # Also log the stack trace
+            exc_type, exc_value, exc_traceback = sys.exc_info()
+            lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
+            logger.error(''.join('!! ' + line for line in lines))
+
+            # Wait for 60 seconds before retrying
+            sleep(5)
+
+
 def poll_cluster_connections():
     """
     Manages polling connections
@@ -62,28 +126,48 @@ def poll_cluster_connections():
     while not apps.apps_ready or not apps.models_ready:
         sleep(0.1)
 
+    logger.info("Server is starting up...")
+
     # Delete all existing websocket tokens
     from django_hpc_job_controller.models import WebsocketToken
     try:
         WebsocketToken.objects.all().delete()
     except ProgrammingError as e:
-        print("Django HPC Job Controller: Models are not yet migrated - "
+        logger.warning("Django HPC Job Controller: Models are not yet migrated - "
               "please make sure to restart the django project once migrations are applied")
         return
 
     # Loop forever
     while True:
-        # Iterate over all clusters
-        from django_hpc_job_controller.models import HpcCluster
-        for cluster in HpcCluster.objects.all():
-            # Ask the cluster to connect
-            cluster.try_connect()
+        try:
+            # Iterate over all clusters
+            from django_hpc_job_controller.models import HpcCluster
+            for cluster in HpcCluster.objects.all():
+                # Ask the cluster to connect
+                logger.info("Checking that server {} is online...".format(str(cluster)))
+                cluster.try_connect()
 
-        # Create a thread to check pending jobs
-        Thread(target=check_pending_jobs, args=[], daemon=True).start()
 
-        # Wait for 60 seconds before retrying
-        sleep(60)
+            # Create a thread to check pending jobs
+            logger.info("Starting pending jobs thread...")
+            Thread(target=check_pending_jobs, args=[], daemon=True).start()
+
+            # Wait for 60 seconds before retrying
+            sleep(60)
+        except Exception as e:
+            # An exception occurred, log the exception to the log
+            logger.error("Error in poll_cluster_connections")
+            logger.error(type(e))
+            logger.error(e.args)
+            logger.error(e)
+
+            # Also log the stack trace
+            exc_type, exc_value, exc_traceback = sys.exc_info()
+            lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
+            logger.error(''.join('!! ' + line for line in lines))
+
+            # Wait for 60 seconds before retrying
+            sleep(60)
 
 
 async def send_handler(sock, queue):
@@ -161,6 +245,12 @@ async def handle_client(sock, path, token):
             task.cancel()
 
     finally:
+        try:
+            # At least try to close the socket if it's still open
+            sock.close()
+        except:
+            pass
+
         # The client died, or disconnected, get the cluster
         cluster = token.cluster
         # Remove the client from the connection map so the cluster appears offline

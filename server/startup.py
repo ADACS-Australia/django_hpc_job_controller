@@ -1,6 +1,9 @@
 import asyncio
+import logging
 import os
 import socket
+import sys
+import traceback
 import urllib.parse
 from contextlib import closing
 from threading import Thread
@@ -9,8 +12,10 @@ from time import sleep
 import websockets
 
 from django_hpc_job_controller.server.settings import HPC_WEBSOCKET_PORT, HPC_IPC_UNIX_SOCKET
-from .server import poll_cluster_connections, handle_client, domain_socket_client_connected
+from .server import poll_cluster_connections, handle_client, domain_socket_client_connected, heartbeat_thread
 
+# Get the logger
+logger = logging.getLogger(__name__)
 
 def check_if_socket_open(host, port):
     """
@@ -71,15 +76,27 @@ async def new_client(websocket, path):
 async def domain_socket_server():
     sock = HPC_IPC_UNIX_SOCKET
 
-    # Make sure the socket does not already exist
     try:
-        os.unlink(sock)
-    except OSError:
-        if os.path.exists(sock):
-            raise
+        # Make sure the socket does not already exist
+        try:
+            os.unlink(sock)
+        except OSError:
+            if os.path.exists(sock):
+                raise
 
-    # Start the unix domain socket server
-    await asyncio.start_unix_server(domain_socket_client_connected, sock)
+        # Start the unix domain socket server
+        await asyncio.start_unix_server(domain_socket_client_connected, sock)
+    except Exception as e:
+        # An exception occurred, log the exception to the log
+        logger.error("Error in domain_socket_server")
+        logger.error(type(e))
+        logger.error(e.args)
+        logger.error(e)
+
+        # Also log the stack trace
+        exc_type, exc_value, exc_traceback = sys.exc_info()
+        lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
+        logger.error(''.join('!! ' + line for line in lines))
 
 
 def websocket_server_thread():
@@ -89,18 +106,32 @@ def websocket_server_thread():
     :return: Nothing - never returns
     """
 
-    # Create and set the event loop for this thread
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
+    # In case the websocket server dies
+    while True:
+        try:
+            # Create and set the event loop for this thread
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
 
-    # Create the websocket server
-    start_server = websockets.serve(new_client, '0.0.0.0', HPC_WEBSOCKET_PORT, max_size=2 ** 32, compression=None)
+            # Create the websocket server
+            start_server = websockets.serve(new_client, '0.0.0.0', HPC_WEBSOCKET_PORT, max_size=2 ** 32, compression=None)
 
-    asyncio.ensure_future(domain_socket_server())
+            asyncio.ensure_future(domain_socket_server())
 
-    # Start the websocket server
-    loop.run_until_complete(start_server)
-    loop.run_forever()
+            # Start the websocket server
+            loop.run_until_complete(start_server)
+            loop.run_forever()
+        except Exception as e:
+            # An exception occurred, log the exception to the log
+            logger.error("Error in websocket_server_thread")
+            logger.error(type(e))
+            logger.error(e.args)
+            logger.error(e)
+
+            # Also log the stack trace
+            exc_type, exc_value, exc_traceback = sys.exc_info()
+            lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
+            logger.error(''.join('!! ' + line for line in lines))
 
 
 def check_websocket_server():
@@ -120,3 +151,6 @@ def check_websocket_server():
 
         # Spawn a new thread to initiate cluster connections
         Thread(target=poll_cluster_connections, args=[], daemon=True).start()
+
+        # Spawn a new thread to verify that clients are responsive
+        Thread(target=heartbeat_thread, args=[], daemon=True).start()

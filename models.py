@@ -128,6 +128,14 @@ class HpcCluster(models.Model):
             # Generate a new token for the connection
             token = WebsocketToken.objects.create(cluster=self)
 
+            # Check if the host is localhost
+            # if self.host_name == 'localhost':
+            #     # Use subprocess to start the client locally
+            #     os.subprocess.check_output(
+            #         "cd {}; . venv/bin/activate; python client.py start {}".format(self.client_path, token.token),
+            #         shell=True
+            #     )
+            # else:
             # Try to create the ssh connection
             ssh = self.get_ssh_connection()
             if not ssh:

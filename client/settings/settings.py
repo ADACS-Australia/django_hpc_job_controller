@@ -10,7 +10,7 @@ HPC_DAEMON_PID_FILE = '/tmp/hpc_job_controller.pid'
 HPC_WEBSOCKET_SERVER = 'ws://127.0.0.1:8001'
 
 # The scheduler class
-HPC_SCHEDULER_CLASS = 'scheduler.scheduler.Scheduler'
+HPC_SCHEDULER_CLASS = 'scheduler.local.Local'
 
 # The location of job working directory
 HPC_JOB_WORKING_DIRECTORY = '/tmp/jobs/'
