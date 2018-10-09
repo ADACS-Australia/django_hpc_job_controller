@@ -132,7 +132,7 @@ class HpcCluster(models.Model):
             # if self.host_name == 'localhost':
             #     # Use subprocess to start the client locally
             #     os.subprocess.check_output(
-            #         "cd {}; . venv/bin/activate; python client.py start {}".format(self.client_path, token.token),
+            #         "cd {}; . venv/bin/activate; python client.py {}".format(self.client_path, token.token),
             #         shell=True
             #     )
             # else:
@@ -143,7 +143,7 @@ class HpcCluster(models.Model):
                 return
             # Execute the remote command to start the daemon
             ssh.exec_command(
-                "cd {}; . venv/bin/activate; python client.py start {}".format(self.client_path, token.token)
+                "cd {}; . venv/bin/activate; python client.py {}".format(self.client_path, token.token)
             )
 
         # Spawn a thread to try to connect the client
