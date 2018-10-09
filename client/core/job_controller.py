@@ -121,9 +121,11 @@ class JobController:
             logging.info("Got heartbeat")
             result = Message(Message.HEARTBEAT_PONG)
             await self.send_assured_message(result, identifier)
+
         elif msg_id == Message.INITIATE_FILE_CONNECTION:
             # Create a new thread to handle a file connection
             Thread(target=create_file_connection, args=[msg.pop_string(), self.settings], daemon=True).start()
+
         elif msg_id == Message.SUBMIT_JOB:
             # Get the ui id of the job
             ui_id = msg.pop_uint()
@@ -190,6 +192,7 @@ class JobController:
             response_identifier = msg.pop_string()
             # Handle the message
             await self.handle_message(msg.pop_bytes(), response_identifier)
+
         elif msg_id == Message.GET_FILE_TREE:
             # Get the UI ID of the job to get the files for
             ui_id = msg.pop_uint()
@@ -257,6 +260,7 @@ class JobController:
 
             # Send the message back to the server
             await self.send_assured_message(result, identifier)
+
         else:
             logging.info("Got unknown message id {}".format(msg_id))
 
