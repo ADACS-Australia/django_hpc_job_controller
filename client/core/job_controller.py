@@ -120,7 +120,7 @@ class JobController:
         if msg_id == Message.HEARTBEAT_PING:
             logging.info("Got heartbeat")
             result = Message(Message.HEARTBEAT_PONG)
-            await self.sock.send(result.to_bytes())
+            await self.send_assured_message(result, identifier)
         elif msg_id == Message.INITIATE_FILE_CONNECTION:
             # Create a new thread to handle a file connection
             Thread(target=create_file_connection, args=[msg.pop_string(), self.settings], daemon=True).start()

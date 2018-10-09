@@ -78,6 +78,7 @@ def heartbeat_thread():
                         msg = send_message_assure_response(msg, cluster)
                         if msg.pop_uint() != Message.HEARTBEAT_PONG:
                             raise Exception("Client heartbeat did not return an expected pong")
+                        logger.info("Got Heartbeat response, client is alive")
                     except:
                         logger.info("Client didn't respond to a heartbeat in a satisfactory length of time, marking "
                                     "it dead.")
