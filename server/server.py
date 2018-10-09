@@ -81,19 +81,22 @@ def heartbeat_thread():
                                     "it dead.")
 
                         # Get the socket for this token
-                        sock, _ = get_socket_from_token(token)
+                        sock, _ = get_socket_from_cluster_id(cluster.id)
 
-                        try:
-                            # At least attempt to close the websocket if it's still open
-                            sock.close()
-                        except:
-                            pass
+                        if sock:
+                            try:
+                                # At least attempt to close the websocket if it's still open
+                                sock.close()
+                            except:
+                                pass
 
-                        # The client died, or disconnected, get the cluster
-                        cluster = token.cluster
+                            # The client died, or disconnected, get the cluster
+                            cluster = token.cluster
 
-                        # Remove the client from the connection map so the cluster appears offline
-                        del CONNECTION_MAP[sock]
+                            # Remove the client from the connection map so the cluster appears offline
+                            del CONNECTION_MAP[sock]
+                        else:
+                            logging.info("Couldn't get socket for cluster {}".format(str(cluster)))
 
                         # Try to force reconnect the cluster if this was not a file connection
                         cluster.try_connect(True)
