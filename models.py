@@ -141,10 +141,14 @@ class HpcCluster(models.Model):
             if not ssh:
                 # Looks like the server is down, or credentials are invalid
                 return
+
             # Execute the remote command to start the daemon
             ssh.exec_command(
                 "cd {}; . venv/bin/activate; python client.py {}".format(self.client_path, token.token)
             )
+
+            # Close the conneciton
+            ssh.close()
 
         # Spawn a thread to try to connect the client
         Thread(target=connection_thread, args=[], daemon=True).start()
