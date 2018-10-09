@@ -77,22 +77,21 @@ def heartbeat_thread():
                         if msg.pop_uint() != Message.HEARTBEAT_PONG:
                             raise Exception("Client heartbeat did not return an expected pong")
                     except:
-                        logger.info("Client didn't respond to a heartbeat in a satisfactory length of time, marking"
+                        logger.info("Client didn't respond to a heartbeat in a satisfactory length of time, marking "
                                     "it dead.")
 
                         # Get the socket for this token
                         sock, _ = get_socket_from_cluster_id(cluster.id)
+
+                        logger.info("Socket for dead connection {}".format(str(sock)))
 
                         if sock:
                             CONNECTION_MAP[sock]['queue'].put('close')
                         else:
                             logging.info("Couldn't get socket for cluster {}".format(str(cluster)))
 
-                        # Try to force reconnect the cluster if this was not a file connection
-                        cluster.try_connect(True)
-
             # Wait for 5 seconds before retrying
-            asyncio.sleep(5)
+            sleep(5)
         except Exception as e:
             # An exception occurred, log the exception to the log
             logger.error("Error in heartbeat_thread")
@@ -106,7 +105,7 @@ def heartbeat_thread():
             logger.error(''.join('!! ' + line for line in lines))
 
             # Wait for 60 seconds before retrying
-            asyncio.sleep(5)
+            sleep(5)
 
 
 def poll_cluster_connections():
@@ -175,12 +174,19 @@ async def send_handler(sock, queue):
         # Wait for a message from the queue
         message = await queue.get()
 
+        logging.info("Got message {}".format(str(message)))
+
         # Check for close message
         if message == 'close':
             # Close the socket
             await sock.close()
+            # Get the cluster
+            cluster = CONNECTION_MAP[sock]['token'].cluster
+            logging.info("Got a close socket message for cluster {}".format(str(cluster)))
             # Remove the client from the connection map so the cluster appears offline
             del CONNECTION_MAP[sock]
+            # Try to force reconnect the cluster if this was not a file connection
+            cluster.try_connect(True)
             # Done
             return
 
