@@ -57,7 +57,7 @@ async def recv_message_reader(sock):
     return Message(data=data)
 
 
-async def heartbeat_thread():
+def heartbeat_thread():
     """
     Loops forever polling the connected clients and marking them disconnected in case they don't respond within 15 seconds
 
@@ -84,17 +84,7 @@ async def heartbeat_thread():
                         sock, _ = get_socket_from_cluster_id(cluster.id)
 
                         if sock:
-                            try:
-                                # At least attempt to close the websocket if it's still open
-                                await sock.close()
-                            except:
-                                pass
-
-                            # The client died, or disconnected, get the cluster
-                            cluster = token.cluster
-
-                            # Remove the client from the connection map so the cluster appears offline
-                            del CONNECTION_MAP[sock]
+                            CONNECTION_MAP[sock]['queue'].put('close')
                         else:
                             logging.info("Couldn't get socket for cluster {}".format(str(cluster)))
 
@@ -102,7 +92,7 @@ async def heartbeat_thread():
                         cluster.try_connect(True)
 
             # Wait for 5 seconds before retrying
-            await asyncio.sleep(5)
+            asyncio.sleep(5)
         except Exception as e:
             # An exception occurred, log the exception to the log
             logger.error("Error in heartbeat_thread")
@@ -116,7 +106,7 @@ async def heartbeat_thread():
             logger.error(''.join('!! ' + line for line in lines))
 
             # Wait for 60 seconds before retrying
-            await asyncio.sleep(5)
+            asyncio.sleep(5)
 
 
 def poll_cluster_connections():
@@ -184,6 +174,16 @@ async def send_handler(sock, queue):
     while True:
         # Wait for a message from the queue
         message = await queue.get()
+
+        # Check for close message
+        if message == 'close':
+            # Close the socket
+            await sock.close()
+            # Remove the client from the connection map so the cluster appears offline
+            del CONNECTION_MAP[sock]
+            # Done
+            return
+
         # Send the message
         await sock.send(message)
 
@@ -235,9 +235,6 @@ async def handle_client(sock, path, token):
 
         # Create a thread to check pending jobs
         Thread(target=check_pending_jobs, args=[], daemon=True).start()
-
-        # Create a heartbeat server
-        asyncio.ensure_future(heartbeat_thread())
 
         # Wait for one of the tasks to finish
         done, pending = await asyncio.wait(
