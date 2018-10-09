@@ -239,12 +239,24 @@ async def handle_client(sock, path, token):
 
         # Kill the remaining tasks
         for task in pending:
-            task.cancel()
+            await task.cancel()
 
+    except Exception as e:
+        # An exception occurred, log the exception to the log
+        logger.error("Error in handle_client")
+        logger.error(type(e))
+        logger.error(e.args)
+        logger.error(e)
+
+        # Also log the stack trace
+        exc_type, exc_value, exc_traceback = sys.exc_info()
+        lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
+        logger.error(''.join('!! ' + line for line in lines))
     finally:
+        logger.info("The socket ended.")
         try:
             # At least try to close the socket if it's still open
-            sock.close()
+            await sock.close()
         except:
             pass
 
@@ -346,12 +358,6 @@ async def domain_socket_client_connected(reader, writer):
         # Get the cluster
         cluster = m['token'].cluster
         logger.info("Got a close socket message for cluster {}".format(str(cluster)))
-
-        # Remove the client from the connection map so the cluster appears offline
-        del CONNECTION_MAP[s]
-
-        # Try to force reconnect the cluster if this was not a file connection
-        cluster.try_connect(True)
     else:
         # Fell through without handling the message
         result = Message(Message.RESULT_FAILURE)
