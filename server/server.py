@@ -23,6 +23,7 @@ CONNECTION_MAP = {}
 # Get the logger
 logger = logging.getLogger(__name__)
 
+
 def send_message_writer(message, sock, raw=False):
     """
     Sends a standard Message object directly to the specified socket
@@ -93,7 +94,7 @@ def heartbeat_thread():
                             # Send the message
                             check_uds_result(send_uds_message(message))
                         else:
-                            logging.info("Couldn't get socket for cluster {}".format(str(cluster)))
+                            logger.info("Couldn't get socket for cluster {}".format(str(cluster)))
 
             # Wait for 5 seconds before retrying
             sleep(5)
@@ -335,6 +336,7 @@ async def domain_socket_client_connected(reader, writer):
             result = Message(Message.RESULT_FAILURE)
             result.push_string("Unable to find any connected client with the specified token")
     elif msg_id == Message.CLOSE_WEBSOCKET:
+        logger.info("Closing the websocket")
         # Get the socket to close and delete
         s, m = get_socket_from_token(msg.pop_string())
 
@@ -343,7 +345,7 @@ async def domain_socket_client_connected(reader, writer):
 
         # Get the cluster
         cluster = m['token'].cluster
-        logging.info("Got a close socket message for cluster {}".format(str(cluster)))
+        logger.info("Got a close socket message for cluster {}".format(str(cluster)))
 
         # Remove the client from the connection map so the cluster appears offline
         del CONNECTION_MAP[s]
