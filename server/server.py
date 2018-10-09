@@ -78,7 +78,6 @@ def heartbeat_thread():
                         msg = send_message_assure_response(msg, cluster)
                         if msg.pop_uint() != Message.HEARTBEAT_PONG:
                             raise Exception("Client heartbeat did not return an expected pong")
-                        logger.info("Got Heartbeat response, client is alive")
                     except:
                         logger.info("Client didn't respond to a heartbeat in a satisfactory length of time, marking "
                                     "it dead.")
@@ -98,7 +97,7 @@ def heartbeat_thread():
                             logger.info("Couldn't get socket for cluster {}".format(str(cluster)))
 
             # Wait for 5 seconds before retrying
-            sleep(5)
+            sleep(20)
         except Exception as e:
             # An exception occurred, log the exception to the log
             logger.error("Error in heartbeat_thread")
@@ -112,7 +111,7 @@ def heartbeat_thread():
             logger.error(''.join('!! ' + line for line in lines))
 
             # Wait for 60 seconds before retrying
-            sleep(5)
+            sleep(20)
 
 
 def poll_cluster_connections():

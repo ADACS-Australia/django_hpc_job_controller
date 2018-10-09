@@ -118,7 +118,6 @@ class JobController:
         # Handle the message
 
         if msg_id == Message.HEARTBEAT_PING:
-            logging.info("Got heartbeat")
             result = Message(Message.HEARTBEAT_PONG)
             await self.send_assured_message(result, identifier)
 

@@ -194,7 +194,8 @@ class HpcCluster(models.Model):
         file_token = WebsocketToken.objects.create(cluster=self, is_file=True)
 
         # Create the named uds
-        sock = create_uds_server(HPC_IPC_UNIX_SOCKET + "." + str(file_token.token))
+        socket_path = HPC_IPC_UNIX_SOCKET + "." + str(file_token.token)
+        sock = create_uds_server(socket_path)
 
         # Ask the cluster to raise a new websocket connection for this file
         msg = Message(Message.INITIATE_FILE_CONNECTION)
@@ -209,6 +210,14 @@ class HpcCluster(models.Model):
             # Wait for the connection
             connection, client_address = sock.accept()
         except socket.timeout:
+            # Clean up the socket
+            sock.close()
+            try:
+                os.unlink(socket_path)
+            except OSError:
+                if os.path.exists(socket_path):
+                    raise
+
             raise Exception(
                 "Attempt to create a file connection to the cluster didn't respond in a satisfactory length "
                 "of time")
@@ -245,6 +254,15 @@ class HpcCluster(models.Model):
 
                 # Check if this chunk indicates the end of the file
                 if not len(chunk):
+                    # Clean up the socket
+                    sock.close()
+                    try:
+                        os.unlink(socket_path)
+                    except OSError:
+                        if os.path.exists(socket_path):
+                            raise
+
+                    # Nothig more to do
                     break
 
                 # Return this chunk
