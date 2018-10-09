@@ -224,6 +224,22 @@ def send_message_assure_response(msg, cluster):
         # Wait for the connection
         connection, client_address = sock.accept()
     except socket.timeout:
+        # THe cluster must also be dead
+
+        # Create the close message
+        message = Message(Message.CLOSE_WEBSOCKET)
+        message.push_string(str(token.token))
+        # Send the message
+        check_uds_result(send_uds_message(message))
+
+        # Clean up the socket
+        sock.close()
+        try:
+            os.unlink(socket_path)
+        except OSError:
+            if os.path.exists(socket_path):
+                raise
+
         raise Exception(
             "Attempt to await a response from the cluster didn't respond in a satisfactory length "
             "of time")

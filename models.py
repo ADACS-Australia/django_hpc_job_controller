@@ -218,6 +218,13 @@ class HpcCluster(models.Model):
                 if os.path.exists(socket_path):
                     raise
 
+            # THe websocket must also be dead
+            # Create the close message
+            message = Message(Message.CLOSE_WEBSOCKET)
+            message.push_string(str(token.token))
+            # Send the message
+            check_uds_result(send_uds_message(message))
+
             raise Exception(
                 "Attempt to create a file connection to the cluster didn't respond in a satisfactory length "
                 "of time")
