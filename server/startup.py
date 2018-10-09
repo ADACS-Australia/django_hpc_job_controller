@@ -151,6 +151,3 @@ def check_websocket_server():
 
         # Spawn a new thread to initiate cluster connections
         Thread(target=poll_cluster_connections, args=[], daemon=True).start()
-
-        # Spawn a new thread to verify that clients are responsive
-        Thread(target=heartbeat_thread, args=[], daemon=True).start()

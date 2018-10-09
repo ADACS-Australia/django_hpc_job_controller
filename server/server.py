@@ -57,7 +57,7 @@ async def recv_message_reader(sock):
     return Message(data=data)
 
 
-def heartbeat_thread():
+async def heartbeat_thread():
     """
     Loops forever polling the connected clients and marking them disconnected in case they don't respond within 15 seconds
 
@@ -86,7 +86,7 @@ def heartbeat_thread():
                         if sock:
                             try:
                                 # At least attempt to close the websocket if it's still open
-                                sock.close()
+                                await sock.close()
                             except:
                                 pass
 
@@ -102,7 +102,7 @@ def heartbeat_thread():
                         cluster.try_connect(True)
 
             # Wait for 5 seconds before retrying
-            sleep(5)
+            await asyncio.sleep(5)
         except Exception as e:
             # An exception occurred, log the exception to the log
             logger.error("Error in heartbeat_thread")
@@ -116,7 +116,7 @@ def heartbeat_thread():
             logger.error(''.join('!! ' + line for line in lines))
 
             # Wait for 60 seconds before retrying
-            sleep(5)
+            await asyncio.sleep(5)
 
 
 def poll_cluster_connections():
@@ -149,7 +149,6 @@ def poll_cluster_connections():
                 # Ask the cluster to connect
                 logger.info("Checking that server {} is online...".format(str(cluster)))
                 cluster.try_connect()
-
 
             # Create a thread to check pending jobs
             logger.info("Starting pending jobs thread...")
@@ -236,6 +235,9 @@ async def handle_client(sock, path, token):
 
         # Create a thread to check pending jobs
         Thread(target=check_pending_jobs, args=[], daemon=True).start()
+
+        # Create a heartbeat server
+        asyncio.ensure_future(heartbeat_thread())
 
         # Wait for one of the tasks to finish
         done, pending = await asyncio.wait(

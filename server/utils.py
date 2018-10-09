@@ -108,7 +108,7 @@ def get_job_model_instance():
     return getattr(importlib.import_module('.'.join(class_bits[:-1])), class_bits[-1])
 
 
-def check_pending_jobs():
+async def check_pending_jobs():
     """
     Checks for any jobs marked pending and attempts to submit them
 
