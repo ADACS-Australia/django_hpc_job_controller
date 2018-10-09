@@ -4,6 +4,8 @@ import os
 import pickle
 import random
 import socket
+import sys
+import traceback
 import uuid
 from threading import Thread
 from time import sleep
@@ -101,19 +103,31 @@ class HpcCluster(models.Model):
                 key = io.StringIO(self.key)
                 key = paramiko.RSAKey.from_private_key(key, self.password)
                 ssh.connect(self.host_name, username=self.username, pkey=key)
-                return ssh, ssh.get_transport().open_channel()
+                return ssh, ssh.get_transport().open_channel("session")
 
             # Check for normal key
             if self.key:
                 key = io.StringIO(self.key)
                 key = paramiko.RSAKey.from_private_key(key)
                 ssh.connect(self.host_name, username=self.username, pkey=key)
-                return ssh, ssh.get_transport().open_channel()
+                return ssh, ssh.get_transport().open_channel("session")
 
             # Use normal password authentication
             ssh.connect(self.host_name, username=self.username, password=self.password)
-            return ssh, ssh.get_transport().open_channel()
-        except:
+            return ssh, ssh.get_transport().open_channel("session")
+        except Exception as e:
+            # An exception occurred, log the exception to the log
+            logging.error("Error in get_ssh_connection")
+            logging.error(type(e))
+            logging.error(e.args)
+            logging.error(e)
+
+            # Also log the stack trace
+            exc_type, exc_value, exc_traceback = sys.exc_info()
+            lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
+            logging.error(''.join('!! ' + line for line in lines))
+
+            # Return None
             return None, None
 
     def try_connect(self, force=False):
@@ -153,7 +167,7 @@ class HpcCluster(models.Model):
             ssh.exec_command(command)
 
             # Wait for the connection to close
-            stdout, stderr = '', ''
+            stdout, stderr = b'', b''
             while True:  # monitoring process
                 # Reading from output streams
                 while ssh.recv_ready():
