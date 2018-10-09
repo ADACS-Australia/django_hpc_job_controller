@@ -73,7 +73,7 @@ def heartbeat_thread():
                 if token:
                     msg = Message(Message.HEARTBEAT_PING)
                     try:
-                        msg = send_message_assure_response(msg)
+                        msg = send_message_assure_response(msg, cluster)
                         if msg.pop_uint() != Message.HEARTBEAT_PONG:
                             raise Exception("Client heartbeat did not return an expected pong")
                     except:
