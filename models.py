@@ -1,10 +1,12 @@
 import io
+import logging
 import os
 import pickle
 import random
 import socket
 import uuid
 from threading import Thread
+from time import sleep
 
 import paramiko as paramiko
 from django.db import models
@@ -17,6 +19,8 @@ from django_hpc_job_controller.server.utils import send_uds_message, check_uds_r
     send_message_socket, recv_message_socket, get_job_submission_lock, check_pending_jobs, \
     create_uds_server, send_message_assure_response
 from django_hpc_job_controller.server.settings import HPC_FILE_CONNECTION_CHUNK_SIZE, HPC_IPC_UNIX_SOCKET
+
+logger = logging.getLogger(__name__)
 
 
 class WebsocketToken(models.Model):
@@ -97,20 +101,20 @@ class HpcCluster(models.Model):
                 key = io.StringIO(self.key)
                 key = paramiko.RSAKey.from_private_key(key, self.password)
                 ssh.connect(self.host_name, username=self.username, pkey=key)
-                return ssh
+                return ssh, ssh.get_transport().open_channel()
 
             # Check for normal key
             if self.key:
                 key = io.StringIO(self.key)
                 key = paramiko.RSAKey.from_private_key(key)
                 ssh.connect(self.host_name, username=self.username, pkey=key)
-                return ssh
+                return ssh, ssh.get_transport().open_channel()
 
             # Use normal password authentication
             ssh.connect(self.host_name, username=self.username, password=self.password)
-            return ssh
+            return ssh, ssh.get_transport().open_channel()
         except:
-            return None
+            return None, None
 
     def try_connect(self, force=False):
         """
@@ -137,18 +141,36 @@ class HpcCluster(models.Model):
             #     )
             # else:
             # Try to create the ssh connection
-            ssh = self.get_ssh_connection()
+            client, ssh = self.get_ssh_connection()
             if not ssh:
                 # Looks like the server is down, or credentials are invalid
                 return
 
+            # Construct the command
+            command = "cd {}; . venv/bin/activate; python client.py {}".format(self.client_path, token.token)
+
             # Execute the remote command to start the daemon
-            ssh.exec_command(
-                "cd {}; . venv/bin/activate; python client.py {}".format(self.client_path, token.token)
-            )
+            ssh.exec_command(command)
+
+            # Wait for the connection to close
+            stdout, stderr = '', ''
+            while True:  # monitoring process
+                # Reading from output streams
+                while ssh.recv_ready():
+                    stdout += ssh.recv(1000)
+                while ssh.recv_stderr_ready():
+                    stderr += ssh.recv_stderr(1000)
+                if ssh.exit_status_ready():  # If completed
+                    break
+                sleep(0.1)
 
             # Close the conneciton
             ssh.close()
+            client.close()
+
+            logger.info("SSH command {} returned:".format(command))
+            logger.info("Stdout: {}".format(stdout))
+            logger.info("Stderr: {}".format(stderr))
 
         # Spawn a thread to try to connect the client
         Thread(target=connection_thread, args=[], daemon=True).start()
