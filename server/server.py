@@ -239,7 +239,7 @@ async def handle_client(sock, path, token):
 
         # Kill the remaining tasks
         for task in pending:
-            await task.cancel()
+            task.cancel()
 
     except Exception as e:
         # An exception occurred, log the exception to the log
