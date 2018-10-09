@@ -212,6 +212,11 @@ async def handle_client(sock, path, token):
     :param token: The WebsocketToken object this client is using
     :return: Nothing
     """
+    # First check to see if this cluster is already connected
+    s, m = get_socket_from_cluster_id(str(token.cluster.id))
+    if s:
+        # Socket for this cluster is already found, nothing to do
+        return
 
     # If this is a file connection, we need to connect to the unix domain socket expecting this connection
     if path == '/file/':
