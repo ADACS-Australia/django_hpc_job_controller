@@ -124,7 +124,9 @@ def poll_cluster_connections():
     while not apps.apps_ready or not apps.models_ready:
         sleep(0.1)
 
+    # Wait 5 seconds before trying to make any intial connections
     logger.info("Server is starting up...")
+    sleep(5)
 
     # Delete all existing websocket tokens
     from django_hpc_job_controller.models import WebsocketToken

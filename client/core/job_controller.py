@@ -309,7 +309,7 @@ class JobController:
         """
 
         self.sock = await websockets.connect(
-            '{}/pipe/?token={}'.format(self.settings.HPC_WEBSOCKET_SERVER, self.argv[2]))
+            '{}/pipe/?token={}'.format(self.settings.HPC_WEBSOCKET_SERVER, self.argv[1]))
 
         # Create the consumer and producer tasks
         consumer_task = asyncio.ensure_future(self.recv_handler())

@@ -11,13 +11,13 @@ from utils.daemon import Daemon
 
 
 class JobControllerDaemon(Daemon):
-    def __init__(self, pid_file, std_in='/dev/null', std_out='/dev/null', std_err='/dev/null', argv=[]):
+    def __init__(self, std_in='/dev/null', std_out='/dev/null', std_err='/dev/null', argv=[]):
         """
         Class constructor
         :param pid_file: The path to the process id file (from settings.py)
         """
         # Call the super constructor
-        super().__init__(pid_file, std_in, std_out, std_err)
+        super().__init__(std_in, std_out, std_err)
 
         # Set globals
         self.logger = None
@@ -87,56 +87,27 @@ class JobControllerDaemon(Daemon):
         logging.info('Job Controller stopping - lost connection to remote server')
         logging.info('-----------------------------------------------------------------')
 
-    @staticmethod
-    def handle_exit(signum, frame):
-        # Unexpected exit
-        logging.info('I received Exit Code')
-        # Return success status
-        sys.exit(0)
-
 
 # Entry point for the main daemon system.
 if __name__ == '__main__':
     # Create the daemon instance
     daemon = JobControllerDaemon(
-        settings.HPC_DAEMON_PID_FILE,
         '/dev/null',
         os.path.join(settings.HPC_LOG_DIRECTORY, 'out.log'),
         os.path.join(settings.HPC_LOG_DIRECTORY, 'err.log'),
         sys.argv
     )
 
-    # Register an exit handler to catch unexpected shutdowns
-    signal.signal(signal.SIGTERM, daemon.handle_exit)
-
     # Check that the right number of arguments were provided to the daemon on the command line
-    if len(sys.argv) == 3:
-        # Yes, check the command
-        if 'start' == sys.argv[1]:
-            # Start the daemon
-            print('Starting Job Controller')
-            daemon.start()
-        else:
-            # Unknown command
-            logging.error("Unknown command")
-            # Exit with error status
-            sys.exit(-1)
-    elif len(sys.argv) == 2:
-        if 'stop' == sys.argv[1]:
-            # Stop the daemon
-            print('Stopping Job Controller')
-            daemon.stop()
-        else:
-            # Unknown command
-            logging.error("Unknown command")
-            # Exit with error status
-            sys.exit(-1)
+    if len(sys.argv) == 2:
+        print('Starting Job Controller')
+        daemon.start()
 
         # Exit with success
         sys.exit(0)
     else:
         # No, print correct usage
-        print("usage: %s start [websocket token] | stop" % sys.argv[0])
+        print("usage: %s [websocket token]" % sys.argv[0])
 
         # Exit with error status
         sys.exit(-1)
