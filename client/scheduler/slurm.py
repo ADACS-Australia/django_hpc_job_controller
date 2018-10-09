@@ -66,7 +66,7 @@ class Slurm(Scheduler):
             'tasks_per_node': self.tasks_per_node,
             'mem': self.memory,
             'wt_hours': floor(self.walltime / (60 * 60)),
-            'wt_minutes': floor(self.walltime / 60),
+            'wt_minutes': floor(self.walltime / 60) % 60,
             'wt_seconds': self.walltime % 60,
             'job_name': self.job_name,
             'ui_job_id': self.ui_id
