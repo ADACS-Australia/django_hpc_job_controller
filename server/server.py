@@ -13,7 +13,8 @@ from django.db import ProgrammingError
 from django_hpc_job_controller.client.core.messaging.message import Message
 from django_hpc_job_controller.server.cluster_manager import handle_message
 from django_hpc_job_controller.server.file_manager import file_handler
-from django_hpc_job_controller.server.utils import check_pending_jobs, send_message_assure_response
+from django_hpc_job_controller.server.utils import check_pending_jobs, send_message_assure_response, check_uds_result, \
+    send_uds_message
 
 # The list of currently connected clusters in format
 # {Websocket: {'token': WebsocketToken object, 'queue': Queue object}}
@@ -86,7 +87,11 @@ def heartbeat_thread():
                         logger.info("Socket for dead connection {}".format(str(sock)))
 
                         if sock:
-                            CONNECTION_MAP[sock]['queue'].put('close')
+                            # Create the close message
+                            message = Message(Message.CLOSE_WEBSOCKET)
+                            message.push_string(str(token.token))
+                            # Send the message
+                            check_uds_result(send_uds_message(message))
                         else:
                             logging.info("Couldn't get socket for cluster {}".format(str(cluster)))
 
@@ -173,23 +178,6 @@ async def send_handler(sock, queue):
     while True:
         # Wait for a message from the queue
         message = await queue.get()
-
-        logging.info("Got message {}".format(str(message)))
-
-        # Check for close message
-        if message == 'close':
-            # Close the socket
-            await sock.close()
-            # Get the cluster
-            cluster = CONNECTION_MAP[sock]['token'].cluster
-            logging.info("Got a close socket message for cluster {}".format(str(cluster)))
-            # Remove the client from the connection map so the cluster appears offline
-            del CONNECTION_MAP[sock]
-            # Try to force reconnect the cluster if this was not a file connection
-            cluster.try_connect(True)
-            # Done
-            return
-
         # Send the message
         await sock.send(message)
 
@@ -346,6 +334,22 @@ async def domain_socket_client_connected(reader, writer):
             # Couldn't find the connection - client is not online
             result = Message(Message.RESULT_FAILURE)
             result.push_string("Unable to find any connected client with the specified token")
+    elif msg_id == Message.CLOSE_WEBSOCKET:
+        # Get the socket to close and delete
+        s, m = get_socket_from_token(msg.pop_string())
+
+        # Close the socket
+        await s.close()
+
+        # Get the cluster
+        cluster = m['token'].cluster
+        logging.info("Got a close socket message for cluster {}".format(str(cluster)))
+
+        # Remove the client from the connection map so the cluster appears offline
+        del CONNECTION_MAP[s]
+
+        # Try to force reconnect the cluster if this was not a file connection
+        cluster.try_connect(True)
     else:
         # Fell through without handling the message
         result = Message(Message.RESULT_FAILURE)

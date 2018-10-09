@@ -35,6 +35,9 @@ class Message:
     # Used by the client to respond to the servers ping request
     HEARTBEAT_PONG = 6
 
+    # Used internally by the server to close the websocket connection
+    CLOSE_WEBSOCKET = 7
+
     """ Job message ids """
     # Submits a job on the remote client
     # Server -> Client
