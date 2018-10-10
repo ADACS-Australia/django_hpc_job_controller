@@ -113,7 +113,8 @@ class HpcCluster(models.Model):
                 return ssh, ssh.get_transport().open_channel("session")
 
             # Use normal password authentication
-            ssh.connect(self.host_name, username=self.username, password=self.password)
+            ssh.connect(self.host_name, username=self.username, password=self.password, allow_agent=False,
+                        look_for_keys=False)
             return ssh, ssh.get_transport().open_channel("session")
         except Exception as e:
             # An exception occurred, log the exception to the log
@@ -439,5 +440,3 @@ class HpcJob(models.Model):
 
         # Attempt to submit the job to the client
         check_pending_jobs()
-
-
