@@ -214,7 +214,7 @@ class HpcCluster(models.Model):
         # The cluster is online, get the websocket token object and return
         return WebsocketToken.objects.get(cluster=self, id=token_id, is_file=False)
 
-    def fetch_remote_file(self, path, ui_id=None):
+    def fetch_remote_file(self, path, ui_id=None, force_download=True):
         """
         Fetches a file, path, from a this cluster over a websocket connection, and returns a Streaming HTTP response
 
@@ -318,8 +318,9 @@ class HpcCluster(models.Model):
         # Set the file size so the browser knows how big the file is
         response['Content-Length'] = file_size
 
-        # Set the file name of the file the user is downloading
-        response['Content-Disposition'] = "attachment; filename=%s" % os.path.basename(path)
+        if force_download:
+            # Set the file name of the file the user is downloading
+            response['Content-Disposition'] = "attachment; filename=%s" % os.path.basename(path)
 
         # Finally return the response
         return response
@@ -396,7 +397,7 @@ class HpcJob(models.Model):
 
         return send_message_assure_response(msg, self.cluster)
 
-    def fetch_remote_file(self, path):
+    def fetch_remote_file(self, path, force_download=True):
         """
         Retreives a file from the remote job working directory specified with the relative directory path
 
@@ -407,7 +408,7 @@ class HpcJob(models.Model):
             raise Exception("Job does not have a cluster yet!")
 
         # Fetch the remote file
-        return self.cluster.fetch_remote_file(path[1:] if len(path) and path[0] == os.sep else path, self.id)
+        return self.cluster.fetch_remote_file(path[1:] if len(path) and path[0] == os.sep else path, self.id, force_download)
 
     def submit(self, parameters):
         """
