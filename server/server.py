@@ -354,6 +354,7 @@ async def domain_socket_client_connected(reader, writer):
             # Couldn't find the connection - client is not online
             result = Message(Message.RESULT_FAILURE)
             result.push_string("Unable to find any connected client with the specified token")
+
     elif msg_id == Message.CLOSE_WEBSOCKET:
         logger.info("Closing the websocket")
         # Get the socket to close and delete
@@ -362,9 +363,13 @@ async def domain_socket_client_connected(reader, writer):
         # Close the socket
         await s.close()
 
+        # Clean up the connection map
+        del CONNECTION_MAP[s]
+
         # Get the cluster
         cluster = m['token'].cluster
         logger.info("Got a close socket message for cluster {}".format(str(cluster)))
+
     else:
         # Fell through without handling the message
         result = Message(Message.RESULT_FAILURE)
