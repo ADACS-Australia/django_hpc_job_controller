@@ -5,7 +5,7 @@ import shutil
 import stat
 import subprocess
 
-from django_hpc_job_controller.client.scheduler.status import JobStatus
+from .status import JobStatus
 from .scheduler import Scheduler
 
 SUBMISSION_TEMPLATE = """\
