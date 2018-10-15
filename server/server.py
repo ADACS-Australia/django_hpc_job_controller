@@ -96,7 +96,7 @@ def heartbeat_thread():
                         else:
                             logger.info("Couldn't get socket for cluster {}".format(str(cluster)))
 
-            # Wait for 5 seconds before retrying
+            # Wait for a bit before retrying
             sleep(20)
         except Exception as e:
             # An exception occurred, log the exception to the log
@@ -110,7 +110,7 @@ def heartbeat_thread():
             lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
             logger.error(''.join('!! ' + line for line in lines))
 
-            # Wait for 60 seconds before retrying
+            # Wait for a bit before retrying
             sleep(20)
 
 
