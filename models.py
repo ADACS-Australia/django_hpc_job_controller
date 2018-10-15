@@ -220,6 +220,8 @@ class HpcCluster(models.Model):
         """
         Fetches a file, path, from a this cluster over a websocket connection, and returns a Streaming HTTP response
 
+        :param force_download: If the returned Streaming HTTP Response should force a download
+        :param ui_id: The UI ID of the job to fetch the file for, if this is None files can be fetched from anywhere
         :param path: The path to the file to fetch
 
         :return: A Django StreamingHTTPResponse
@@ -403,6 +405,7 @@ class HpcJob(models.Model):
         """
         Retreives a file from the remote job working directory specified with the relative directory path
 
+        :param force_download: If the returned Streaming HTTP Response should force a download
         :param path: The relative path to the job working directory of the file to retreive
         :return: A streaming HTTP response
         """
