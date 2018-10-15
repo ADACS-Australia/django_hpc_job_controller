@@ -10,4 +10,4 @@ client/local.pickle
 client/venv/
 client/log/
 
-local.py
+client/settings/local.py
