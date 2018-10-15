@@ -51,15 +51,31 @@ async def new_client(websocket, path):
     # Try to get the websocket token object from the provided token
     try:
         from ..models import WebsocketToken
-        token = WebsocketToken.objects.get(token=params['token'][0], used=False)
+        token = WebsocketToken.objects.get(token=params['token'][0])
+
+        # Check if the token has already been used
+        if token.used:
+            # Token seems to be invalid
+            logger.info("Someone tried to reuse token {}".format(params['token'][0]))
+            # Close the socket
+            await websocket.close()
+            # Nothing else to do
+            return
 
         # Mark the token used
         token.used = True
         token.save()
-    except:
-        # Token seems to be invalid
-        logger.info("Someone tried to reuse token {}".format(params['token'][0]))
-        return
+    except Exception as Exp:
+        # An exception occurred, log the exception to the log
+        logger.error("Error while handling a new client")
+        logger.error(type(Exp))
+        logger.error(Exp.args)
+        logger.error(Exp)
+
+        # Also log the stack trace
+        exc_type, exc_value, exc_traceback = sys.exc_info()
+        lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
+        logger.error(''.join('!! ' + line for line in lines))
 
     # Verify that the path is correct
     if path not in ['/pipe/', '/file/']:
