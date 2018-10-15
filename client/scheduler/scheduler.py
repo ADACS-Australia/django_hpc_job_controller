@@ -50,7 +50,6 @@ class Scheduler:
         """
         Get the status of a job
 
-        :param job_id: The id of the job to check
         :return: A tuple with JobStatus, additional info as a string
         """
         raise NotImplementedError()
@@ -60,8 +59,14 @@ class Scheduler:
         Cancel a running job
 
         :param job_id: The id of the job to cancel
-        :return: True if the job was cancelled otherwise False
+        :return: Nothing
         """
         raise NotImplementedError()
 
-    
+    def delete_data(self):
+        """
+        Delete all job data
+
+        :return: Nothing
+        """
+        raise NotImplementedError()

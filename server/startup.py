@@ -17,6 +17,7 @@ from .server import poll_cluster_connections, handle_client, domain_socket_clien
 # Get the logger
 logger = logging.getLogger(__name__)
 
+
 def check_if_socket_open(host, port):
     """
     Checks if a socket is open or not on the given host
@@ -57,18 +58,22 @@ async def new_client(websocket, path):
         token.save()
     except:
         # Token seems to be invalid
-        print("Someone tried to reuse token {}".format(params['token'][0]))
+        logger.info("Someone tried to reuse token {}".format(params['token'][0]))
         return
 
     # Verify that the path is correct
     if path not in ['/pipe/', '/file/']:
         # Invalid path provided, nothing to do
-        print("Someone tried to connect to an invalid path")
+        logger.info("Someone tried to connect to an invalid path")
         return
 
     # Verify that the path is correct for the token type
     if (path == '/pipe/' and token.is_file) or (path == '/file/' and not token.is_file):
-        print("Someone tried to connect with the wrong type of token")
+        logger.info("Someone tried to connect with the wrong type of token")
+
+    logger.info("Remote cluster {} connected with token {} on path {}".format(
+        str(token.cluster), str(token.token), path)
+    )
 
     await handle_client(websocket, path, token)
 

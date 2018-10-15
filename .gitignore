@@ -5,6 +5,7 @@ __pycache__/
 .idea/
 
 client/db.pickle
+client/local.pickle
 
 client/venv/
 client/log/

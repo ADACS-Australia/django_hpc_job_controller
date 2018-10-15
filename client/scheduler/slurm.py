@@ -154,7 +154,6 @@ class Slurm(Scheduler):
         """
         Get the status of a job
 
-        :param job_id: The id of the job to check
         :return: A tuple with JobStatus, additional info as a string. None if no job status could be obtained
         """
         logging.info("Trying to get status of job {}...".format(self.job_id))
@@ -238,3 +237,18 @@ class Slurm(Scheduler):
         # todo: Handle errors
         # Get the output
         logging.info("Command `{}` returned `{}`".format(command, stdout))
+
+    def delete_data(self):
+        """
+        Delete all job data
+
+        :return: Nothing
+        """
+        # Get the output path for this job
+        working_directory = self.get_working_directory()
+
+        # Make sure that the directory is deleted if it exists
+        try:
+            shutil.rmtree(working_directory)
+        except:
+            pass

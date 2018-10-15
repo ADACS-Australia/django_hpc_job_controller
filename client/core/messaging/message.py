@@ -55,10 +55,12 @@ class Message:
     UPDATE_JOB = 1001
 
     # Sent by the server to cancel a job
-    # uint: The HpcJob id
-    # uint: The JobStatus
-    # string: Any additional information about this status
+    # uint: The HpcJob id to cancel
     CANCEL_JOB = 1002
+
+    # Sent by the server to delete a job
+    # uint: The HpcJob id to delete
+    DELETE_JOB = 1003
 
     """ File message ids"""
     # Creates a new file controller websocket connection for transmitting a file

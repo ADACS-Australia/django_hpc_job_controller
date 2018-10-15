@@ -1,9 +1,11 @@
 import io
 import logging
+import mimetypes
 import os
 import pickle
 import random
 import socket
+import subprocess
 import sys
 import traceback
 import uuid
@@ -17,10 +19,10 @@ from django.utils import timezone
 
 from django_hpc_job_controller.client.core.messaging.message import Message
 from django_hpc_job_controller.client.scheduler.status import JobStatus
-from django_hpc_job_controller.server.utils import send_uds_message, check_uds_result, \
-    send_message_socket, recv_message_socket, get_job_submission_lock, check_pending_jobs, \
-    create_uds_server, send_message_assure_response
 from django_hpc_job_controller.server.settings import HPC_FILE_CONNECTION_CHUNK_SIZE, HPC_IPC_UNIX_SOCKET
+from django_hpc_job_controller.server.utils import send_uds_message, check_uds_result, \
+    send_message_socket, recv_message_socket, check_pending_jobs, \
+    create_uds_server, send_message_assure_response
 
 logger = logging.getLogger(__name__)
 
@@ -148,44 +150,44 @@ class HpcCluster(models.Model):
             token = WebsocketToken.objects.create(cluster=self)
 
             # Check if the host is localhost
-            # if self.host_name == 'localhost':
-            #     # Use subprocess to start the client locally
-            #     os.subprocess.check_output(
-            #         "cd {}; . venv/bin/activate; python client.py {}".format(self.client_path, token.token),
-            #         shell=True
-            #     )
-            # else:
-            # Try to create the ssh connection
-            client, ssh = self.get_ssh_connection()
-            if not ssh:
-                # Looks like the server is down, or credentials are invalid
-                return
+            if self.host_name == 'localhost':
+                # Use subprocess to start the client locally
+                subprocess.check_output(
+                    "cd {}; . venv/bin/activate; python client.py {}".format(self.client_path, token.token),
+                    shell=True
+                )
+            else:
+                # Try to create the ssh connection
+                client, ssh = self.get_ssh_connection()
+                if not ssh:
+                    # Looks like the server is down, or credentials are invalid
+                    return
 
-            # Construct the command
-            command = "cd {}; . venv/bin/activate; python client.py {}".format(self.client_path, token.token)
+                # Construct the command
+                command = "cd {}; . venv/bin/activate; python client.py {}".format(self.client_path, token.token)
 
-            # Execute the remote command to start the daemon
-            ssh.exec_command(command)
+                # Execute the remote command to start the daemon
+                ssh.exec_command(command)
 
-            # Wait for the connection to close
-            stdout, stderr = b'', b''
-            while True:  # monitoring process
-                # Reading from output streams
-                while ssh.recv_ready():
-                    stdout += ssh.recv(1000)
-                while ssh.recv_stderr_ready():
-                    stderr += ssh.recv_stderr(1000)
-                if ssh.exit_status_ready():  # If completed
-                    break
-                sleep(0.1)
+                # Wait for the connection to close
+                stdout, stderr = b'', b''
+                while True:  # monitoring process
+                    # Reading from output streams
+                    while ssh.recv_ready():
+                        stdout += ssh.recv(1000)
+                    while ssh.recv_stderr_ready():
+                        stderr += ssh.recv_stderr(1000)
+                    if ssh.exit_status_ready():  # If completed
+                        break
+                    sleep(0.1)
 
-            # Close the conneciton
-            ssh.close()
-            client.close()
+                # Close the conneciton
+                ssh.close()
+                client.close()
 
-            logger.info("SSH command {} returned:".format(command))
-            logger.info("Stdout: {}".format(stdout))
-            logger.info("Stderr: {}".format(stderr))
+                logger.info("SSH command {} returned:".format(command))
+                logger.info("Stdout: {}".format(stdout))
+                logger.info("Stderr: {}".format(stderr))
 
         # Spawn a thread to try to connect the client
         Thread(target=connection_thread, args=[], daemon=True).start()
@@ -313,7 +315,7 @@ class HpcCluster(models.Model):
                 yield chunk
 
         # Create the streaming http response object
-        response = StreamingHttpResponse(stream_generator())
+        response = StreamingHttpResponse(stream_generator(), content_type=mimetypes.guess_type(os.path.basename(path)))
 
         # Set the file size so the browser knows how big the file is
         response['Content-Length'] = file_size
@@ -408,7 +410,8 @@ class HpcJob(models.Model):
             raise Exception("Job does not have a cluster yet!")
 
         # Fetch the remote file
-        return self.cluster.fetch_remote_file(path[1:] if len(path) and path[0] == os.sep else path, self.id, force_download)
+        return self.cluster.fetch_remote_file(path[1:] if len(path) and path[0] == os.sep else path, self.id,
+                                              force_download)
 
     def submit(self, parameters):
         """
@@ -435,6 +438,51 @@ class HpcJob(models.Model):
 
         # Set the submission time
         self.job_pending_time = timezone.now()
+
+        # Save this job
+        self.save()
+
+        # Attempt to submit the job to the client
+        check_pending_jobs()
+
+    def cancel(self):
+        """
+        Cancels the job on the cluster
+
+        :return: Nothing
+        """
+        # Check that the job is currently in a cancellable state
+        if self.job_status not in [JobStatus.PENDING, JobStatus.SUBMITTED, JobStatus.QUEUED, JobStatus.RUNNING]:
+            raise Exception("Attempt to cancel a job that is not in a pending, queued, or running state")
+
+        # Check if the job is pending, and mark it cancelled immediately since it was never submitted to the server
+        if self.job_status == JobStatus.PENDING:
+            self.job_status = JobStatus.CANCELLED
+            self.save()
+            return
+
+        # Mark the job as cancelling
+        self.job_status = JobStatus.CANCELLING
+
+        # Save this job
+        self.save()
+
+        # Attempt to submit the job to the client
+        check_pending_jobs()
+
+    def delete_job(self):
+        """
+        Deletes the job and removes the data on the cluster
+
+        :return: Nothing
+        """
+        # Check that the job is currently in a deletable state
+        if self.job_status not in [JobStatus.DRAFT, JobStatus.COMPLETED, JobStatus.ERROR, JobStatus.CANCELLED,
+                                   JobStatus.WALL_TIME_EXCEEDED, JobStatus.OUT_OF_MEMORY]:
+            raise Exception("Attempt to delete a job that is in a running state")
+
+        # Mark the job as deleting
+        self.job_status = JobStatus.DELETING
 
         # Save this job
         self.save()

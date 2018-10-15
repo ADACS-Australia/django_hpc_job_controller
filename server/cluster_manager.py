@@ -1,4 +1,5 @@
 import asyncio
+import logging
 
 from django.utils import timezone
 
@@ -6,6 +7,9 @@ from django_hpc_job_controller.client.core.messaging.message import Message
 from django_hpc_job_controller.client.scheduler.status import JobStatus
 from django_hpc_job_controller.server.utils import get_job_submission_lock, get_job_model_instance
 
+
+# Get the logger
+logger = logging.getLogger(__name__)
 
 async def handle_message(sock, token, queue, message):
     """
@@ -44,7 +48,7 @@ async def handle_message(sock, token, queue, message):
 
         # Check that the jobs cluster matches the tokens cluster
         if job.cluster != token.cluster:
-            print("A different cluster ({} (id: {})) tried to update a job ({} (id: {})) it does not own!".format(
+            logger.info("A different cluster ({} (id: {})) tried to update a job ({} (id: {})) it does not own!".format(
                 str(token.cluster), token.cluster.id, str(job), job.id
             ))
             return

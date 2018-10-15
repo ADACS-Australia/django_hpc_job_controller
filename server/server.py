@@ -360,15 +360,17 @@ async def domain_socket_client_connected(reader, writer):
         # Get the socket to close and delete
         s, m = get_socket_from_token(msg.pop_string())
 
-        # Close the socket
-        await s.close()
+        # Make sure the socket exists still
+        if s:
+            # Close the socket
+            await s.close()
 
-        # Clean up the connection map
-        del CONNECTION_MAP[s]
+            # Clean up the connection map
+            del CONNECTION_MAP[s]
 
-        # Get the cluster
-        cluster = m['token'].cluster
-        logger.info("Got a close socket message for cluster {}".format(str(cluster)))
+            # Get the cluster
+            cluster = m['token'].cluster
+            logger.info("Got a close socket message for cluster {}".format(str(cluster)))
 
     else:
         # Fell through without handling the message

@@ -152,7 +152,7 @@ def check_pending_jobs():
                         # Send the message
                         token.send_message(msg)
 
-                        # Mark the job as submitted
+                        # Mark the job as submitting
                         job.job_status = JobStatus.SUBMITTING
                         job.job_submitting_time = timezone.now()
                         job.save()
@@ -160,6 +160,50 @@ def check_pending_jobs():
                         # The job did not successfully submit, reset it's state back to pending
                         job.job_status = JobStatus.PENDING
                         job.save()
+
+        # Get any cancelling jobs
+        cancelling_jobs = get_job_model_instance().objects.filter(job_status=JobStatus.CANCELLING)
+
+        # Iterate over each job and attempt to cancel it
+        for job in cancelling_jobs:
+            # Check that the job is currently in a cancelling state
+            if job.job_status == JobStatus.CANCELLING:
+                # Get the token for the selected cluster if it's online
+                token = job.cluster.is_connected()
+                # Check if the cluster for this job is online
+                if token:
+                    try:
+                        # Create a cancel message
+                        msg = Message(Message.CANCEL_JOB)
+                        msg.push_uint(job.id)
+
+                        # Send the message
+                        token.send_message(msg)
+                    except:
+                        # The job did not successfully cancel
+                        pass
+
+        # Get any deleting jobs
+        cancelling_jobs = get_job_model_instance().objects.filter(job_status=JobStatus.DELETING)
+
+        # Iterate over each job and attempt to delete it
+        for job in cancelling_jobs:
+            # Check that the job is currently in a deleting state
+            if job.job_status == JobStatus.DELETING:
+                # Get the token for the selected cluster if it's online
+                token = job.cluster.is_connected()
+                # Check if the cluster for this job is online
+                if token:
+                    try:
+                        # Create a delete message
+                        msg = Message(Message.DELETE_JOB)
+                        msg.push_uint(job.id)
+
+                        # Send the message
+                        token.send_message(msg)
+                    except:
+                        # The job did not successfully delete
+                        pass
 
 
 def create_uds_server(socket_path, timeout=10):

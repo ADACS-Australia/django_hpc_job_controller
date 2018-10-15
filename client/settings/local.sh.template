@@ -1,0 +1,6 @@
+#!/bin/bash
+
+# Simple example script
+hostname
+
+sleep 60
