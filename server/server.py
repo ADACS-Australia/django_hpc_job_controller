@@ -214,13 +214,18 @@ async def handle_client(sock, path, token):
     # First check to see if this cluster is already connected
     s, m = get_socket_from_cluster_id(str(token.cluster.id))
     if s:
+        logger.info("Cluster {} tried to connect with token {} but it's already connected. Ignoring..."
+                    .format(str(token.cluster), str(token.token)))
         # Socket for this cluster is already found, nothing to do
         return
 
     # If this is a file connection, we need to connect to the unix domain socket expecting this connection
     if path == '/file/':
+        logger.info("Cluster {} connected with token {} as a file...".format(str(token.cluster), str(token.token)))
         await file_handler(sock, token)
         return
+
+    logger.info("Cluster {} connected with token {} as a pipe...".format(str(token.cluster), str(token.token)))
 
     try:
         # Create a queue to use for this client
