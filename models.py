@@ -30,6 +30,8 @@ logger = logging.getLogger(__name__)
 class WebsocketToken(models.Model):
     """
     A record of current and used websocket tokens
+
+    todo: Need to clean up old tokens, or tokens older than some duration that haven't been used
     """
 
     # The token
