@@ -11,6 +11,7 @@ from django_hpc_job_controller.server.utils import get_job_submission_lock, get_
 # Get the logger
 logger = logging.getLogger(__name__)
 
+
 async def handle_message(sock, token, queue, message):
     """
     Handles an incoming message from a non file websocket
@@ -30,6 +31,10 @@ async def handle_message(sock, token, queue, message):
     if msg_id == Message.SUBMIT_JOB:
         # Acquire the job submission lock
         with get_job_submission_lock():
+            # Clean up the django connection
+            from django.db import connection
+            connection.close()
+
             # Look up the job
             job = get_job_model_instance().objects.get(id=msg.pop_uint(), job_status=JobStatus.SUBMITTING)
 
@@ -43,6 +48,10 @@ async def handle_message(sock, token, queue, message):
             job.save()
 
     elif msg_id == Message.UPDATE_JOB:
+        # Clean up the django connection
+        from django.db import connection
+        connection.close()
+        
         # Look up the job we are updating the status of
         job = get_job_model_instance().objects.get(id=msg.pop_uint())
 

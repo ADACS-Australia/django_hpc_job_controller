@@ -117,6 +117,10 @@ def check_pending_jobs():
 
     # Lock the job submission mutex
     with get_job_submission_lock():
+        # Clean up the django connection
+        from django.db import connection
+        connection.close()
+
         # First get any jobs that have been in the submitting state for longer than 60 seconds
         old_submitting_jobs = get_job_model_instance().objects.filter(
             job_status=JobStatus.SUBMITTING,

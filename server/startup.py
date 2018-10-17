@@ -48,6 +48,10 @@ async def new_client(websocket, path):
         # No token provided, nothing to do
         return
 
+    # Clean up the django connection
+    from django.db import connection
+    connection.close()
+
     # Try to get the websocket token object from the provided token
     try:
         from ..models import WebsocketToken

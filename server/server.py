@@ -67,6 +67,10 @@ def heartbeat_thread():
     """
     while True:
         try:
+            # Clean up the django connection
+            from django.db import connection
+            connection.close()
+
             # Iterate over all clusters
             from django_hpc_job_controller.models import HpcCluster
             for cluster in HpcCluster.objects.all():
@@ -139,6 +143,10 @@ def poll_cluster_connections():
 
     # Loop forever
     while True:
+        # Clean up the django connection
+        from django.db import connection
+        connection.close()
+
         try:
             # Iterate over all clusters
             from django_hpc_job_controller.models import HpcCluster
