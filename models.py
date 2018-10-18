@@ -457,8 +457,7 @@ class HpcJob(models.Model):
         :return: Nothing
         """
         # Check that the job is currently in a cancellable state
-        if self.job_status not in [JobStatus.PENDING, JobStatus.SUBMITTING, JobStatus.SUBMITTED, JobStatus.QUEUED,
-                                   JobStatus.RUNNING]:
+        if self.job_status not in [JobStatus.PENDING, JobStatus.SUBMITTED, JobStatus.QUEUED, JobStatus.RUNNING]:
             raise Exception("Attempt to cancel a job that is not in a pending, queued, or running state")
 
         # Check if the job is pending, and mark it cancelled immediately since it was never submitted to the server
