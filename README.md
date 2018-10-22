@@ -94,10 +94,137 @@ HpcCluster is a record of a client cluster that should be connected when the ser
 
 *If using this function, you should take care to close the connection when you're finished using the SSH connection.*
 
+```python
+    def get_ssh_connection(self):
+        """
+        Returns a Paramiko SSH connection to the cluster
+
+        :return: The SSH instance
+        """
 ```
 
+`HpcCluster.try_connect`:   Checks that this cluster is online, and if not, attempts to start the remote client on the cluster. This function checks internally if the hostname of the cluster is `localhost`, and if so uses subprocess rather than an SSH connection.
+
+```python
+    def try_connect(self, force=False):
+        """
+        Checks if this cluster is connected, and if not tries to connect
+
+        :param force: Forces the remote client to be started even if the cluster reports that it is online
+        :return: Nothing
+        """
 ```
 
-`HpcCluster.try_connect`: 
+`HpcCluster.is_connected`: Checks if the cluster is online or not. This function is cheap, and has low overhead. It is the preferred function to call for checking if the cluster is online from within Django.
 
-## Examples
+```python
+    def is_connected(self):
+        """
+        Checks if this cluster is currently online
+
+        :return: A WebsocketToken object if the cluster is online otherwise None
+        """
+```
+
+`HpcCluster.fetch_remote_file`: Is used to initiate and return a file from the remote cluster. This function returns a StreamingHTTPResponse that can be streamed directly as a response to a request in a Django view. The path parameter is the absolute path to a remote file on the cluster if the UI ID parameter is none. If the UI ID is set, then the path is relative to the Job's remote output directory. If force download is true, then the StreamingHTTPResponse forces the browser to treat the file as an attachment and download the file.
+
+```python
+    def fetch_remote_file(self, path, ui_id=None, force_download=True):
+        """
+        Fetches a file, path, from a this cluster over a websocket connection, and returns a Streaming HTTP response
+
+        :param force_download: If the returned Streaming HTTP Response should force a download
+        :param ui_id: The UI ID of the job to fetch the file for, if this is None files can be fetched from anywhere
+        :param path: The path to the file to fetch
+
+        :return: A Django StreamingHTTPResponse
+        """
+```
+
+### HpcJob
+
+`HpcJob.choose_cluster`: This function is called when a job is submitted. This function should be overridden in the inherited model and used to choose which cluster the job should be submitted to. This function takes the job parameters as it's parameter.
+
+```python
+    def choose_cluster(self, parameters):
+        """
+        Chooses the most appropriate cluster for the job to run on
+
+        Should be overridden
+
+        :type parameters: Job parameters that may be used to choose a correct cluster for this job
+
+        :return: The cluster chosen to run the job on
+        """
+```
+
+`HpcJob.fetch_remote_file_list`: This function returns a list of files in the output directory for the job. The path is a path relative to the root of the output directory of the job. Files may be fetched recursively or just within the path specified. This function returns a `GET_FILE_TREE` Message, with the format:
+
+```python
+# uint: Number of files/folders
+    # string: Path (relative to job working directory)
+    # bool: Is folder
+    # ulong: File size if file else 0
+```
+
+```python
+    def fetch_remote_file_list(self, path="/", recursive=True):
+        """
+        Retrieves the list of files at the specified relative path and returns it
+
+        :param path: The relative path in the job output directory to fetch the file list for
+        :param recursive: If the result should be the recursive list of files
+        :return: A recursive dictionary of file information
+        """
+```
+
+`HpcJob.fetch_remote_file`: Returns a file from the remote cluster relative to the output path of the job. This function leverages the functionality of `HpcCluster.fetch_remote_file`
+
+```python
+    def fetch_remote_file(self, path, force_download=True):
+        """
+        Retreives a file from the remote job working directory specified with the relative directory path
+
+        :param force_download: If the returned Streaming HTTP Response should force a download
+        :param path: The relative path to the job working directory of the file to retreive
+        :return: A streaming HTTP response
+        """
+```
+
+`HpcJob.submit`: Submits the job with the specified parameters. The parameters can be any picklable object. This function will call `choose_cluster` to choose the cluster, then submit the job to that cluster. When the job is submitted, the job will enter PENDING state if the cluster is not online. If the cluster is online (or comes online) the job will enter SUBMITTING state. Once the cluster acknowledges that the job has been submitted the job state is updated to SUBMITTED.
+
+```python
+    def submit(self, parameters):
+        """
+        Submits this job to the cluster
+
+        Should not be overridden
+
+        :param parameters: Any python picklable object containing the information to be sent to the client
+
+        :return: The current status of the job (Either SUBMITTED or QUEUED)
+        """
+```
+
+`HpcJob.cancel`: Cancels the job on the remote cluster if it is in a cancellable state. The job will enter CANCELLING state until the client acknowledges that it has cancelled the job, when the job will then enter CANCELLED state.
+
+```python
+    def cancel(self):
+        """
+        Cancels the job on the cluster
+
+        :return: Nothing
+        """
+```
+
+`HpcJob.delete_job`: Deletes the job data from the remote cluster if the job is in a deletable state. The Job will enter DELETING state until the client acknowledges that it has deleted the job, when the job will then enter DELETE state.
+
+```python
+    def delete_job(self):
+        """
+        Deletes the job and removes the data on the cluster
+
+        :return: Nothing
+        """
+```
+
