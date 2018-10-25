@@ -44,6 +44,9 @@ class WebsocketToken(models.Model):
     # If this token is for a file connection
     is_file = models.BooleanField(default=False)
 
+    # The timestamp when the token was issued
+    timestamp = models.DateTimeField(default=timezone.now)
+
     def send_message(self, message):
         """
         Sends a message to the websocket associated with this token
