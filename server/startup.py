@@ -6,10 +6,12 @@ import sys
 import traceback
 import urllib.parse
 from contextlib import closing
+from datetime import timedelta
 from threading import Thread
 from time import sleep
 
 import websockets
+from django.utils import timezone
 
 from django_hpc_job_controller.server.settings import HPC_WEBSOCKET_PORT, HPC_IPC_UNIX_SOCKET
 from .server import poll_cluster_connections, handle_client, domain_socket_client_connected, heartbeat_thread
@@ -56,6 +58,15 @@ async def new_client(websocket, path):
     try:
         from ..models import WebsocketToken
         token = WebsocketToken.objects.get(token=params['token'][0])
+
+        # Check that the token is not older than a minute
+        if token.timestamp + timedelta(seconds=60) < timezone.now():
+            # Token seems to be invalid
+            logger.info("Someone tried to use an expired token {}".format(params['token'][0]))
+            # Close the socket
+            await websocket.close()
+            # Nothing else to do
+            return
 
         # Check if the token has already been used
         if token.used:

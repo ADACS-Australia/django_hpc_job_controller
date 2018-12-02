@@ -11,7 +11,9 @@ from .scheduler import Scheduler
 SUBMISSION_TEMPLATE = """\
 #!/bin/bash
 
-%(script_name)s >%(working_directory)s/log.out 2>%(working_directory)s/log.err
+cd %(working_directory)s
+
+bash -e %(script_name)s >%(working_directory)s/log.out 2>%(working_directory)s/log.err
 
 echo $? > %(working_directory)s/exit_code
 """
@@ -153,7 +155,7 @@ class Local(Scheduler):
         os.chmod(local_script, stat.S_IRUSR | stat.S_IXUSR)
 
         # Execute the job in the background
-        os.system("nohup {} & echo $! > {}".format(self.get_local_execution_script_file_path(), self.get_pid_path()))
+        os.system("set -m; exec nohup {} & echo $! > {}".format(self.get_local_execution_script_file_path(), self.get_pid_path()))
 
         # Generate a new id for this job
         # Read the database
@@ -239,7 +241,7 @@ class Local(Scheduler):
         logging.info("Trying to terminate job {}...".format(self.job_id))
 
         # Construct the command
-        command = 'pkill -TERM -P {}'.format(self.get_process_id())
+        command = 'kill -9 -- -$(ps -o pgid= {} | grep -o [0-9]*)'.format(self.get_process_id())
 
         # Cancel the job
         stdout = subprocess.check_output(command, shell=True)

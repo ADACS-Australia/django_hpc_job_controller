@@ -46,6 +46,9 @@ class WebsocketToken(models.Model):
     # If this token is for a file connection
     is_file = models.BooleanField(default=False)
 
+    # The timestamp when the token was issued
+    timestamp = models.DateTimeField(default=timezone.now)
+
     def send_message(self, message):
         """
         Sends a message to the websocket associated with this token
@@ -138,6 +141,8 @@ class HpcCluster(models.Model):
     def try_connect(self, force=False):
         """
         Checks if this cluster is connected, and if not tries to connect
+
+        :param force: Forces the remote client to be started even if the cluster reports that it is online
 
         :return: Nothing
         """
@@ -390,7 +395,7 @@ class HpcJob(models.Model):
 
     def fetch_remote_file_list(self, path="/", recursive=True):
         """
-        Retreives the list of files at the specified relative path and returns it
+        Retrieves the list of files at the specified relative path and returns it
 
         :param path: The relative path in the job output directory to fetch the file list for
         :param recursive: If the result should be the recursive list of files
@@ -426,7 +431,7 @@ class HpcJob(models.Model):
 
         :param parameters: Any python picklable object containing the information to be sent to the client
 
-        :return: The current status of the job (Either SUBMITTED or QUEUED)
+        :return: Nothing
         """
         # Check that the job is currently a draft
         if self.job_status != JobStatus.DRAFT:
