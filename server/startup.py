@@ -57,7 +57,28 @@ async def new_client(websocket, path):
     # Try to get the websocket token object from the provided token
     try:
         from ..models import WebsocketToken
-        token = WebsocketToken.objects.get(token=params['token'][0])
+
+        # First check that the params contains the token
+        if 'token' not in params:
+            # Report the issue
+            logger.info("A token was not provided when attempting to connect a websocket")
+            # Close the connection
+            await websocket.close()
+            # Nothing left to do, return
+            return
+
+        # Check that a WebsocketToken object exists with the provided token
+        token = WebsocketToken.objects.filter(token=params['token'][0])
+        
+        if not token.exists():
+            # Report the issue
+            logger.info("No WebsocketToken object exists with token {}".format(params['token'][0]))
+            # Close the connection
+            await websocket.close()
+            # Nothing left to do, return
+            return	
+
+        token = token.first()
 
         # Check that the token is not older than a minute
         if token.timestamp + timedelta(seconds=60) < timezone.now():
