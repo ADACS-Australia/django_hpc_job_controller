@@ -71,7 +71,7 @@ class HpcCluster(models.Model):
     """
 
     # The host name of the cluster, ie ozstar.swin.edu.au
-    host_name = models.CharField(max_length=250, unique=True)
+    host_name = models.CharField(max_length=250, help_text="Host name and Client path must be unique together.")
 
     # THe private SSH key if there is one
     key = models.TextField(blank=True)
@@ -85,7 +85,8 @@ class HpcCluster(models.Model):
     password = models.CharField(max_length=1024, blank=True)
 
     # The absolute path to the client.py file
-    client_path = models.CharField(max_length=2048, default='')
+    client_path = models.CharField(max_length=2048, default='',
+                                   help_text="Host name and Client path must be unique together.")
 
     def __str__(self):
         name = "{}@{}".format(self.username, self.host_name)
