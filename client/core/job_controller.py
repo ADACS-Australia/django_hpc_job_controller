@@ -230,12 +230,16 @@ class JobController:
                         # Construct the real path to this file
                         real_file_name = os.path.join(root, item)
                         # Add the file entry
-                        file_list.append({
-                            # Remove the leading working directory
-                            'path': real_file_name[len(scheduler.get_working_directory()):],
-                            'is_dir': False,
-                            'size': os.path.getsize(real_file_name)
-                        })
+                        try:
+                            file_list.append({
+                                # Remove the leading working directory
+                                'path': real_file_name[len(scheduler.get_working_directory()):],
+                                'is_dir': False,
+                                'size': os.path.getsize(real_file_name)
+                            })
+                        except FileNotFoundError:
+                            # Happens when trying to stat a symlink
+                            pass
             else:
                 # Not a recursive search
                 for item in os.listdir(root_path):
