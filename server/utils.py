@@ -194,20 +194,26 @@ def check_pending_jobs():
         for job in cancelling_jobs:
             # Check that the job is currently in a deleting state
             if job.job_status == JobStatus.DELETING:
-                # Get the token for the selected cluster if it's online
-                token = job.cluster.is_connected()
-                # Check if the cluster for this job is online
-                if token:
-                    try:
-                        # Create a delete message
-                        msg = Message(Message.DELETE_JOB)
-                        msg.push_uint(job.id)
+                # Check that the job has a cluster
+                if not job.cluster:
+                    # Job can be safely deleted
+                    job.job_status = JobStatus.DELETED
+                    job.save()
+                else:
+                    # Get the token for the selected cluster if it's online
+                    token = job.cluster.is_connected()
+                    # Check if the cluster for this job is online
+                    if token:
+                        try:
+                            # Create a delete message
+                            msg = Message(Message.DELETE_JOB)
+                            msg.push_uint(job.id)
 
-                        # Send the message
-                        token.send_message(msg)
-                    except:
-                        # The job did not successfully delete
-                        pass
+                            # Send the message
+                            token.send_message(msg)
+                        except:
+                            # The job did not successfully delete
+                            pass
 
 
 def create_uds_server(socket_path, timeout=10):
