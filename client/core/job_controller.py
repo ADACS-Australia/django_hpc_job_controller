@@ -180,12 +180,6 @@ class JobController:
                     # Send the result
                     await self.sock.send(result.to_bytes())
 
-                    # Wait for a few seconds
-                    await sleep(5)
-
-                    # Check the job status in case it was queued immediately
-                    await self.check_job_status(job, True)
-
         elif msg_id == Message.TRANSMIT_ASSURED_RESPONSE_WEBSOCKET_MESSAGE:
             # Read the identifier
             response_identifier = msg.pop_string()
