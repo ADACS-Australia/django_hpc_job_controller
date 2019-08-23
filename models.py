@@ -344,10 +344,10 @@ class HpcJob(models.Model):
     """
 
     # The cluster this job is utilising
-    cluster = models.ForeignKey(HpcCluster, on_delete=models.CASCADE, null=True, default=None)
+    cluster = models.ForeignKey(HpcCluster, on_delete=models.CASCADE, null=True, blank=True, default=None)
 
     # The current status of this job
-    job_status = models.IntegerField(null=True, default=JobStatus.DRAFT)
+    job_status = models.IntegerField(null=True, blank=True, default=JobStatus.DRAFT)
 
     # The time the job was marked pending
     job_pending_time = models.DateTimeField(blank=True, null=True, default=None)
@@ -372,6 +372,10 @@ class HpcJob(models.Model):
 
     # Parameters for the job
     job_parameters = models.BinaryField(blank=True, null=True, default=None)
+
+    @property
+    def job_status_display(self):
+        return JobStatus.display_name(self.job_status)
 
     def choose_cluster(self, parameters):
         """
