@@ -1,4 +1,5 @@
 import io
+import json
 import logging
 import mimetypes
 import os
@@ -224,17 +225,21 @@ class HpcCluster(models.Model):
         # The cluster is online, get the websocket token object and return
         return WebsocketToken.objects.get(cluster=self, id=token_id, is_file=False)
 
-    def fetch_remote_file(self, path, ui_id=None, force_download=True):
+    def fetch_remote_file(self, path, ui_id=None, force_download=True, extra_params=None):
         """
         Fetches a file, path, from a this cluster over a websocket connection, and returns a Streaming HTTP response
 
         :param force_download: If the returned Streaming HTTP Response should force a download
         :param ui_id: The UI ID of the job to fetch the file for, if this is None files can be fetched from anywhere
         :param path: The path to the file to fetch
+        :param extra_params: Any extra details to be sent to the client - this can be used for things like custom
+        archive generation (Will be consumed by the client customizations)
 
         :return: A Django StreamingHTTPResponse
         """
         # Check that the cluster is online
+        if extra_params is None:
+            extra_params = {}
         token = self.is_connected()
         if not token:
             raise Exception("Cluster ({}) is not currently online or connected.".format(str(self)))
@@ -285,6 +290,7 @@ class HpcCluster(models.Model):
         msg.push_uint(ui_id or 0)
         msg.push_string(path)
         msg.push_ulong(HPC_FILE_CONNECTION_CHUNK_SIZE)
+        msg.push_string(json.dumps(extra_params))
         send_message_socket(msg, connection)
 
         # Read the result and verify that the file exists
@@ -413,12 +419,15 @@ class HpcJob(models.Model):
 
         return send_message_assure_response(msg, self.cluster)
 
-    def fetch_remote_file(self, path, force_download=True):
+    def fetch_remote_file(self, path, force_download=True, extra_params=None):
         """
-        Retreives a file from the remote job working directory specified with the relative directory path
+        Retrieves a file from the remote job working directory specified with the relative directory path
 
         :param force_download: If the returned Streaming HTTP Response should force a download
-        :param path: The relative path to the job working directory of the file to retreive
+        :param path: The relative path to the job working directory of the file to retrieve
+        :param extra_params: Any extra details to be sent to the client - this can be used for things like custom
+        archive generation (Will be consumed by the client customizations)
+
         :return: A streaming HTTP response
         """
         if not self.cluster:
@@ -426,7 +435,7 @@ class HpcJob(models.Model):
 
         # Fetch the remote file
         return self.cluster.fetch_remote_file(path[1:] if len(path) and path[0] == os.sep else path, self.id,
-                                              force_download)
+                                              force_download, extra_params)
 
     def submit(self, parameters):
         """

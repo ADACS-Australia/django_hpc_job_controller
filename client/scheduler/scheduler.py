@@ -70,3 +70,22 @@ class Scheduler:
         :return: Nothing
         """
         raise NotImplementedError()
+
+    def file_send_start(self, file_path, extra_params):
+        """
+        Handle the start of a file transfer. Typically this function would be used to handle archiving
+        or some other pre file transfer functionality
+
+        Returns the real file path to actually return to the user, and a boolean to verify if the file transfer
+        function should ignore that the file_path doesn't start with the expected job directory prefix
+        """
+        return file_path, False
+
+    def file_send_end(self, file_path, extra_params):
+        """
+        Handle the end of a file transfer. This function could be used to clean up temporary files from
+        file_send_start
+
+        This function is guaranteed to run at the end of a file transfer - even if the transfer fails
+        """
+        pass
