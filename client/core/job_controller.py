@@ -267,7 +267,12 @@ class JobController:
 
             # Verify that this job exists
             if not job:
-                logging.info("Attempt to cancel a job with UI ID {} That does not exist in the database.".format(ui_id))
+                logging.info("Attempt to cancel a job with UI ID {} That does not exist in the database. Telling the UI the job is cancelled...".format(ui_id))
+                result = Message(Message.UPDATE_JOB)
+                result.push_uint(ui_id)
+                result.push_uint(JobStatus.CANCELLED)
+                result.push_string("Job did not exist in the job controller client - job marked cancelled")
+                await self.sock.send(result.to_bytes())
                 return
 
             # Get the scheduler for this job
