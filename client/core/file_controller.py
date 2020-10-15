@@ -1,7 +1,10 @@
 import asyncio
 import importlib
+import json
 import logging
 import os
+import sys
+import traceback
 
 import websockets
 
@@ -22,6 +25,8 @@ class FileController:
         self.file_size = 0
         self.file_chunk_size = 0
         self.ui_id = None
+        self.extra_params = None
+        self.ignore_prefix = False
         self.scheduler_klass = self.get_scheduler_instance()
 
     def get_scheduler_instance(self):
@@ -45,24 +50,50 @@ class FileController:
         async with websockets.connect('{}/file/?token={}'.format(self.settings.HPC_WEBSOCKET_SERVER, self.token),
                                       max_size=2 ** 32) as sock:
             logging.info("File controller connected ok with token {}".format(self.token))
-            async for msg in sock:
-                # Convert the data to a message
-                msg = Message(data=msg)
 
-                # Read the message id
-                msg_id = msg.pop_uint()
+            try:
+                await self.send_file(sock)
+            except Exception as Exp:
+                # An exception occurred, log the exception to the log
+                logging.error("Error in file transfer")
+                logging.error(type(Exp))
+                logging.error(Exp.args)
+                logging.error(Exp)
 
-                # Handle the message
-                if msg_id == Message.SET_FILE_CONNECTION_FILE_DETAILS:
+                # Also log the stack trace
+                exc_type, exc_value, exc_traceback = sys.exc_info()
+                lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
+                logging.error(''.join('!! ' + line for line in lines))
+
+    async def send_file(self, sock):
+        async for msg in sock:
+            # Convert the data to a message
+            msg = Message(data=msg)
+
+            # Read the message id
+            msg_id = msg.pop_uint()
+
+            # Handle the message
+            if msg_id == Message.SET_FILE_CONNECTION_FILE_DETAILS:
+                try:
                     # Read the file name from the message
                     self.ui_id = msg.pop_uint() or None
                     self.file_path = msg.pop_string()
                     self.file_chunk_size = msg.pop_ulong()
+                    self.extra_params = json.loads(msg.pop_string())
+
+                    # Get an instance of the scheduler
+                    scheduler = self.scheduler_klass(self.settings, self.ui_id, None)
+
+                    # Check if there is a file send customisation and call it
+                    try:
+                        self.file_path, self.ignore_prefix = scheduler.file_send_start(self.file_path, self.extra_params)
+                    except AttributeError:
+                        pass
 
                     # Check if we need to construct an absolute file path from a relative path
                     is_valid = True
-                    if self.ui_id:
-                        scheduler = self.scheduler_klass(self.settings, self.ui_id, None)
+                    if self.ui_id and not self.ignore_prefix:
                         self.file_path = os.path.join(scheduler.get_working_directory(), self.file_path)
                         self.file_path = os.path.abspath(self.file_path)
                         # Fetching job files must only fetch files within the job directory
@@ -110,6 +141,12 @@ class FileController:
                     result.push_bytes([])
 
                     await sock.send(result.to_bytes())
+                finally:
+                    # Check if there is a file send customisation and call it
+                    try:
+                        scheduler.file_send_end(self.file_path, self.extra_params)
+                    except AttributeError:
+                        pass
 
 
 def create_file_connection(token, settings):
